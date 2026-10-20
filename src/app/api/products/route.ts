@@ -19,6 +19,8 @@ export async function POST(request: Request) {
   const parsed = productSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Check product details." }, { status: 400 });
   try { const context = await getEditorContext(); if (context.error) return context.error; if (!context.warehouseId) return NextResponse.json({ error: "Choose a warehouse first." }, { status: 400 });
+    const { data: category } = await context.supabase.from("product_categories").select("name").eq("name", parsed.data.category).maybeSingle();
+    if (!category) return NextResponse.json({ error: "Choose a category configured by a System Admin." }, { status: 400 });
     const { data, error } = await context.supabase.from("products").insert({ ...parsed.data, warehouse_id: context.warehouseId }).select("id,name,sku,category").single();
     if (error) return NextResponse.json({ error: error.message }, { status: 400 }); return NextResponse.json({ product: data }, { status: 201 });
   } catch (error) { console.error("Product creation failed", error); return NextResponse.json({ error: "Product could not be created." }, { status: 500 }); }

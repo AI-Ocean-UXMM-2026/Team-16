@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 
 export type SearchableOption = { value: string; label: string; detail?: string };
 
-export function SearchableSelect({ options, value, onChange, placeholder, disabled = false, emptyLabel = "No matches found.", ariaLabel }: { options: SearchableOption[]; value: string; onChange: (value: string) => void; placeholder: string; disabled?: boolean; emptyLabel?: string; ariaLabel: string }) {
+export function SearchableSelect({ options, value, onChange, placeholder = "Select an option", disabled = false, emptyLabel = "No matches found.", ariaLabel }: { options: SearchableOption[]; value: string; onChange: (value: string) => void; placeholder?: string; disabled?: boolean; emptyLabel?: string; ariaLabel: string }) {
   const root = useRef<HTMLDivElement>(null); const [open, setOpen] = useState(false); const [query, setQuery] = useState("");
   const selected = options.find((option) => option.value === value); const matches = options.filter((option) => `${option.label} ${option.detail ?? ""}`.toLowerCase().includes(query.toLowerCase()));
   useEffect(() => { const close = (event: MouseEvent) => { if (!root.current?.contains(event.target as Node)) setOpen(false); }; document.addEventListener("mousedown", close); return () => document.removeEventListener("mousedown", close); }, []);

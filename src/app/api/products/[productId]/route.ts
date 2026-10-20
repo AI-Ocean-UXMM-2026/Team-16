@@ -18,6 +18,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ pr
   const { productId } = await params; const parsed = productSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Check product details." }, { status: 400 });
   try { const context = await contextForEditor(); if (context.error) return context.error; if (!context.warehouseId) return NextResponse.json({ error: "Choose a warehouse first." }, { status: 400 });
+    const { data: category } = await context.supabase.from("product_categories").select("name").eq("name", parsed.data.category).maybeSingle();
+    if (!category) return NextResponse.json({ error: "Choose a category configured by a System Admin." }, { status: 400 });
     const { data, error } = await context.supabase.from("products").update(parsed.data).eq("id", productId).eq("warehouse_id", context.warehouseId).is("archived_at", null).select("id,name,sku,category").maybeSingle();
     if (error) return NextResponse.json({ error: error.message }, { status: 400 }); if (!data) return NextResponse.json({ error: "Product not found in this warehouse." }, { status: 404 }); return NextResponse.json({ product: data });
   } catch (error) { console.error("Product update failed", error); return NextResponse.json({ error: "Product could not be updated." }, { status: 500 }); }
