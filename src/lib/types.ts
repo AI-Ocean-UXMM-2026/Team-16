@@ -35,6 +35,7 @@ export interface InventoryProduct {
 export interface DashboardData {
   products: InventoryProduct[];
   recentMovements: MovementRecord[];
+  movementHistory?: MovementRecord[];
   isDemo: boolean;
   dataAvailable: boolean;
   warehouseId?: string;

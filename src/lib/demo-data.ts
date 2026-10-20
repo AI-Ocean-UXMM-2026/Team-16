@@ -16,4 +16,4 @@ const products: InventoryProduct[] = [
   { id: "p-6", name: "Greek yogurt · 150 g", sku: "BT-GY-402", category: "Dairy", available: 40, averageDailyOut: 6, daysOfSupply: 6.7, risk: "expiry_risk", expiryRisk: true, batches: [{ id: "b-6", batchNumber: "GY-181026", quantity: 40, expiryDate: "2026-10-22" }], movements: movements.filter((item) => item.productName.includes("yogurt")) },
 ];
 
-export const demoDashboardData: DashboardData = { products, recentMovements: movements, isDemo: true, dataAvailable: true };
+export const demoDashboardData: DashboardData = { products, recentMovements: movements, movementHistory: movements, isDemo: true, dataAvailable: true };
