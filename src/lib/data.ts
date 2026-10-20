@@ -29,9 +29,9 @@ export async function getDashboardData(): Promise<DashboardData> {
   try {
     const supabase = await createSupabaseServerClient();
     const { data: userData } = await supabase.auth.getUser();
-    if (!userData.user) return process.env.NODE_ENV === "development" ? demoDashboardData : { products: [], recentMovements: [], isDemo: false, dataAvailable: false };
+    if (!userData.user) return process.env.NODE_ENV === "development" ? demoDashboardData : { products: [], recentMovements: [], isDemo: false, dataAvailable: false, signedIn: false };
     const { warehouseId } = await getWarehouseContext();
-    if (!warehouseId) return { products: [], recentMovements: [], isDemo: false, dataAvailable: true };
+    if (!warehouseId) return { products: [], recentMovements: [], isDemo: false, dataAvailable: true, signedIn: true };
     const { data, error } = await supabase
       .from("products")
       .select("id,name,sku,category,product_batches(id,batch_number,quantity,expiry_date),stock_movements(id,movement_type,quantity,reason,created_at,batch_id,product_id)")
@@ -40,8 +40,9 @@ export async function getDashboardData(): Promise<DashboardData> {
     if (error) throw error;
     const products = ((data ?? []) as DbProduct[]).map(mapProduct);
     const recentMovements = products.flatMap((product) => product.movements).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 8);
-    return { products, recentMovements, isDemo: false, dataAvailable: true, warehouseId };
-  } catch {
-    return process.env.NODE_ENV === "development" ? demoDashboardData : { products: [], recentMovements: [], isDemo: false, dataAvailable: false };
+    return { products, recentMovements, isDemo: false, dataAvailable: true, warehouseId, signedIn: true };
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : "OceanBlue could not read your warehouse data.";
+    return { products: [], recentMovements: [], isDemo: false, dataAvailable: false, signedIn: true, errorMessage };
   }
 }

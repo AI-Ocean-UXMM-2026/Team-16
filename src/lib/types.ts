@@ -38,6 +38,8 @@ export interface DashboardData {
   isDemo: boolean;
   dataAvailable: boolean;
   warehouseId?: string;
+  signedIn?: boolean;
+  errorMessage?: string;
 }
 
 export interface WarehouseOption {

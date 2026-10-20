@@ -13,6 +13,7 @@ export async function POST(request: Request) {
   const question = parsed.data.question;
   const data = await getDashboardData();
   const fallback = deterministicAnswer(data, question);
+  if (!data.dataAvailable) return NextResponse.json({ error: data.errorMessage ?? "OceanBlue cannot read the live warehouse data yet." }, { status: 503 });
   if (!process.env.OPENAI_API_KEY || !process.env.OPENAI_MODEL || data.isDemo || !data.dataAvailable) return NextResponse.json({ answer: fallback, source: "deterministic" });
   const facts = groundFacts(data);
   try {
