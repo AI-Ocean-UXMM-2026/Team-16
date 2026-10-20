@@ -1,6 +1,7 @@
 import { demoDashboardData } from "@/lib/demo-data";
 import { getDaysOfSupply, getDisplayRisk, hasExpiryRisk, RISK_RULES } from "@/lib/risk";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getWarehouseContext } from "@/lib/warehouse";
 import type { BatchRecord, DashboardData, InventoryProduct, MovementRecord, MovementType } from "@/lib/types";
 
 type DbBatch = { id: string; batch_number: string; quantity: number; expiry_date: string | null };
@@ -29,9 +30,7 @@ export async function getDashboardData(): Promise<DashboardData> {
     const supabase = await createSupabaseServerClient();
     const { data: userData } = await supabase.auth.getUser();
     if (!userData.user) return process.env.NODE_ENV === "development" ? demoDashboardData : { products: [], recentMovements: [], isDemo: false, dataAvailable: false };
-    const { data: memberships, error: membershipError } = await supabase.from("warehouse_members").select("warehouse_id").limit(1);
-    if (membershipError) throw membershipError;
-    const warehouseId = memberships?.[0]?.warehouse_id;
+    const { warehouseId } = await getWarehouseContext();
     if (!warehouseId) return { products: [], recentMovements: [], isDemo: false, dataAvailable: true };
     const { data, error } = await supabase
       .from("products")

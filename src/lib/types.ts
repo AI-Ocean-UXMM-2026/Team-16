@@ -39,3 +39,8 @@ export interface DashboardData {
   dataAvailable: boolean;
   warehouseId?: string;
 }
+
+export interface WarehouseOption {
+  id: string;
+  name: string;
+}

@@ -12,9 +12,13 @@ export function getPriorityProducts(data: DashboardData) {
   return [...data.products].filter((product) => product.risk === "stockout_risk" || product.expiryRisk || product.risk === "low_stock" || product.risk === "unknown").sort((a, b) => { const rank = { stockout_risk: 0, expiry_risk: 1, low_stock: 2, unknown: 3, healthy: 4 }; return rank[a.risk] - rank[b.risk]; }).slice(0, 5);
 }
 
-export function deterministicAnswer(data: DashboardData) {
+export function deterministicAnswer(data: DashboardData, question = "") {
   const priorities = getPriorityProducts(data);
   if (!priorities.length) return "No items need immediate attention. Continue recording Stock Out movements so OceanBlue can maintain reliable estimates.";
+  if (/expiry|expir/i.test(question)) {
+    const expiring = priorities.filter((product) => product.expiryRisk);
+    return expiring.length ? `${expiring.length} item${expiring.length === 1 ? " has" : "s have"} batches expiring soon. ${expiring.map((product, index) => `${index + 1}. ${lineFor(product)}`).join(" ")}` : "No current batches meet the expiry-risk threshold. Continue checking batch dates as stock is received.";
+  }
   return `${priorities.length} item${priorities.length === 1 ? "" : "s"} need attention today. ${priorities.map((product, index) => `${index + 1}. ${lineFor(product)}`).join(" ")}`;
 }
 
