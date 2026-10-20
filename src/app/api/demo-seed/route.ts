@@ -9,7 +9,8 @@ export async function POST() {
     const { data, error } = await supabase.rpc("seed_breadtalk_demo");
     if (error) return NextResponse.json({ error: error.message }, { status: 400 });
     return NextResponse.json({ data });
-  } catch {
-    return NextResponse.json({ error: "BreadTalk demo data could not be loaded." }, { status: 500 });
+  } catch (error) {
+    console.error("BreadTalk demo seed failed", error);
+    return NextResponse.json({ error: error instanceof Error ? error.message : "BreadTalk demo data could not be loaded." }, { status: 500 });
   }
 }
