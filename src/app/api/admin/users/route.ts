@@ -1,0 +1,92 @@
+import { NextResponse } from "next/server";
+import { z } from "zod";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+
+const createSchema = z.object({ warehouseId: z.string().uuid(), email: z.string().trim().email().max(254).transform((value) => value.toLowerCase()), username: z.string().trim().toLowerCase().regex(/^[a-z0-9_]{3,32}$/), fullName: z.string().trim().min(1).max(120), role: z.enum(["system_admin", "editor", "viewer"]) });
+const roleSchema = z.object({ warehouseId: z.string().uuid(), userId: z.string().uuid(), role: z.enum(["system_admin", "editor", "viewer"]) });
+
+async function requireAdmin() {
+  const supabase = await createSupabaseServerClient(); const { data: auth } = await supabase.auth.getUser();
+  if (!auth.user) return { error: NextResponse.json({ error: "Authentication is required." }, { status: 401 }) };
+  const { data: admin, error } = await supabase.from("system_admins").select("user_id").eq("user_id", auth.user.id).maybeSingle();
+  if (error || !admin) return { error: NextResponse.json({ error: "Only a system administrator can manage user accounts." }, { status: 403 }) };
+  return { userId: auth.user.id };
+}
+
+export async function GET(request: Request) {
+  const access = await requireAdmin(); if (access.error) return access.error;
+  const warehouseId = new URL(request.url).searchParams.get("warehouseId");
+  if (!warehouseId || !z.string().uuid().safeParse(warehouseId).success) return NextResponse.json({ error: "Choose a valid warehouse." }, { status: 400 });
+  try {
+    const admin = createSupabaseAdminClient();
+    const { data: members, error } = await admin.from("warehouse_members").select("user_id,role").eq("warehouse_id", warehouseId).order("created_at");
+    if (error) throw error;
+    const ids = (members ?? []).map((member) => member.user_id);
+    if (!ids.length) return NextResponse.json({ users: [] });
+    const [{ data: profiles, error: profileError }, { data: admins, error: adminError }] = await Promise.all([admin.from("profiles").select("id,full_name,username").in("id", ids), admin.from("system_admins").select("user_id").in("user_id", ids)]);
+    if (profileError) throw profileError; if (adminError) throw adminError;
+    const adminIds = new Set((admins ?? []).map((item) => item.user_id));
+    const profileById = new Map((profiles ?? []).map((profile) => [profile.id, profile]));
+    const users = await Promise.all((members ?? []).map(async (member) => {
+      const { data: authUser } = await admin.auth.admin.getUserById(member.user_id);
+      const profile = profileById.get(member.user_id);
+      return { userId: member.user_id, fullName: profile?.full_name ?? "", username: profile?.username ?? "", email: authUser.user?.email ?? "", role: adminIds.has(member.user_id) ? "system_admin" : member.role };
+    }));
+    return NextResponse.json({ users });
+  } catch (error) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Users could not be loaded." }, { status: 500 });
+  }
+}
+
+export async function POST(request: Request) {
+  const parsed = createSchema.safeParse(await request.json().catch(() => null));
+  if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Check the new user's details." }, { status: 400 });
+  const access = await requireAdmin(); if (access.error) return access.error;
+  try {
+    const admin = createSupabaseAdminClient(); const input = parsed.data;
+    const [{ data: warehouse }, { data: username }] = await Promise.all([admin.from("warehouses").select("id").eq("id", input.warehouseId).maybeSingle(), admin.from("profiles").select("id").eq("username", input.username).maybeSingle()]);
+    if (!warehouse) return NextResponse.json({ error: "The selected warehouse could not be found." }, { status: 404 });
+    if (username) return NextResponse.json({ error: "That username is already in use." }, { status: 409 });
+    const { data: provision, error: provisionError } = await admin.from("user_provisioning_tokens").insert({ email: input.email, username: input.username, full_name: input.fullName, warehouse_id: input.warehouseId, app_role: input.role, invited_by: access.userId }).select("token").single();
+    if (provisionError || !provision) return NextResponse.json({ error: provisionError?.message ?? "User invitation could not be prepared." }, { status: 400 });
+    const origin = new URL(request.url).origin;
+    const { error: inviteError } = await admin.auth.admin.inviteUserByEmail(input.email, { redirectTo: `${origin}/auth/callback?next=/dashboard`, data: { oceanblue_provisioning_token: provision.token } });
+    if (inviteError) {
+      await admin.from("user_provisioning_tokens").delete().eq("token", provision.token);
+      return NextResponse.json({ error: inviteError.message }, { status: 400 });
+    }
+    return NextResponse.json({ ok: true, message: `Invitation sent to ${input.email}. The account and ${input.role.replace("_", " ")} access are ready when they accept it.` }, { status: 201 });
+  } catch (error) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : "User could not be created." }, { status: 500 });
+  }
+}
+
+export async function PATCH(request: Request) {
+  const parsed = roleSchema.safeParse(await request.json().catch(() => null));
+  if (!parsed.success) return NextResponse.json({ error: "Choose a valid user, warehouse, and role." }, { status: 400 });
+  const access = await requireAdmin(); if (access.error) return access.error;
+  if (parsed.data.userId === access.userId && parsed.data.role !== "system_admin") return NextResponse.json({ error: "You cannot remove your own system administrator access." }, { status: 400 });
+  try {
+    const admin = createSupabaseAdminClient(); const input = parsed.data;
+    const { data: membership, error: memberError } = await admin.from("warehouse_members").select("user_id").eq("warehouse_id", input.warehouseId).eq("user_id", input.userId).maybeSingle();
+    if (memberError) throw memberError; if (!membership) return NextResponse.json({ error: "This user does not belong to the selected warehouse." }, { status: 404 });
+    if (input.role !== "system_admin") {
+      const { count, error: countError } = await admin.from("system_admins").select("user_id", { count: "exact", head: true });
+      if (countError) throw countError;
+      const { data: targetAdmin } = await admin.from("system_admins").select("user_id").eq("user_id", input.userId).maybeSingle();
+      if (targetAdmin && (count ?? 0) <= 1) return NextResponse.json({ error: "At least one System Admin must remain." }, { status: 400 });
+    }
+    const membershipRole = input.role === "viewer" ? "viewer" : "editor";
+    const { error: updateError } = await admin.from("warehouse_members").update({ role: membershipRole }).eq("warehouse_id", input.warehouseId).eq("user_id", input.userId);
+    if (updateError) throw updateError;
+    if (input.role === "system_admin") {
+      const { error } = await admin.from("system_admins").upsert({ user_id: input.userId }, { onConflict: "user_id" }); if (error) throw error;
+    } else {
+      const { error } = await admin.from("system_admins").delete().eq("user_id", input.userId); if (error) throw error;
+    }
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Role could not be updated." }, { status: 500 });
+  }
+}
