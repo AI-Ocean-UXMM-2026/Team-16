@@ -25,7 +25,7 @@ export function deterministicAnswer(data: DashboardData, question = "", locale: 
     ? "လက်ရှိဂိုဒေါင်ဒေတာကို ဖတ်ရှု၍မရသေးပါ။\n\nနောက်တစ်ဆင့်\n- ချိတ်ဆက်မှုကို စစ်ဆေးပြီး ထပ်မံကြိုးစားပါ။\n- ပြဿနာဆက်ရှိနေပါက စနစ်စီမံခန့်ခွဲသူထံ ဆက်သွယ်ပါ။"
     : "The current warehouse data could not be read.\n\nNext steps\n- Check the connection and try again.\n- If the problem continues, contact your System Admin.";
   if (!data.products.length) return myanmar
-    ? "ဤဂိုဒေါင်တွင် စစ်ဆေးနိုင်သော ကုန်ပစ္စည်းမှတ်တမ်း မရှိသေးပါ။\n\nစတင်ရန်\n- BreadTalk သရုပ်ပြဒေတာကွန်ရက်ကို ထည့်သွင်းပါ၊ သို့မဟုတ် ကုန်ပစ္စည်းများကို ထည့်ပါ။\n- ကုန်ပစ္စည်းထည့်ပြီးနောက် လက်ကျန်ဝင်မှတ်တမ်းများကို မှတ်တမ်းတင်ပါ။\n\nမှတ်ချက်\nဒေတာရရှိလာသည့်အခါ စတော့အန္တရာယ်၊ သက်တမ်းကုန်ရက်နှင့် လက်ကျန်ခန့်မှန်းချက်များကို ဆန်းစစ်ပေးနိုင်ပါမည်။"
+    ? "ဤဂိုဒေါင်တွင် စစ်ဆေးနိုင်သော ကုန်ပစ္စည်းမှတ်တမ်း မရှိသေးပါ။\n\nစတင်ရန်\n- ကုန်ပစ္စည်းများကို ထည့်ပါ။\n- ကုန်ပစ္စည်းထည့်ပြီးနောက် လက်ကျန်ဝင်မှတ်တမ်းများကို မှတ်တမ်းတင်ပါ။\n\nမှတ်ချက်\nဒေတာရရှိလာသည့်အခါ စတော့အန္တရာယ်၊ သက်တမ်းကုန်ရက်နှင့် လက်ကျန်ခန့်မှန်းချက်များကို ဆန်းစစ်ပေးနိုင်ပါမည်။"
     : "There are no inventory records to analyze in this warehouse yet.\n\nGet started\n- Load BreadTalk history, or add your products.\n- Record Stock In movements to establish current quantities.\n\nData note\nOnce records are available, OceanBlue can assess stock risk, expiry, and estimated supply.";
   const priorities = getPriorityProducts(data);
   if (!priorities.length) return myanmar
@@ -39,5 +39,5 @@ export function deterministicAnswer(data: DashboardData, question = "", locale: 
 }
 
 export function groundFacts(data: DashboardData) {
-  return getPriorityProducts(data).map((product) => ({ name: product.name, sku: product.sku, available: product.available, averageDailyOut: product.averageDailyOut, estimatedDaysOfSupply: product.daysOfSupply, risk: product.risk, expiringBatches: product.batches.filter((batch) => batch.expiryDate !== null).map((batch) => ({ batchNumber: batch.batchNumber, quantity: batch.quantity, expiryDate: batch.expiryDate })) }));
+  return data.products.map((product) => ({ name: product.name, sku: product.sku, category: product.category, available: product.available, averageDailyOut: product.averageDailyOut, estimatedDaysOfSupply: product.daysOfSupply, risk: product.risk, expiringBatches: product.batches.filter((batch) => batch.quantity > 0 && batch.expiryDate !== null).map((batch) => ({ batchNumber: batch.batchNumber, quantity: batch.quantity, expiryDate: batch.expiryDate })) }));
 }
