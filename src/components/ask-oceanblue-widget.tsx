@@ -42,7 +42,7 @@ export function AskOceanBlueWidget({ locale = "en" }: { locale?: Locale }) {
   useEffect(() => {
     if (!open) return;
     const controller = new AbortController();
-    setQuestion(""); setAnswer(""); setError(""); setSuggestionsLoading(true);
+    setQuestion(""); setAnswer(""); setError(""); setSuggestions([]); setSuggestionsLoading(true);
     fetch("/api/insights/suggestions", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ locale }), signal: controller.signal })
       .then(async (response) => { const result = await response.json() as { suggestions?: string[] }; if (response.ok && result.suggestions?.length) setSuggestions(result.suggestions); })
       .catch(() => undefined)
