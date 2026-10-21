@@ -3,14 +3,6 @@ import Link from "next/link";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-const tones = {
-  blue: "bg-blue-50 text-blue-700 ring-blue-100",
-  green: "bg-emerald-50 text-emerald-700 ring-emerald-100",
-  amber: "bg-amber-50 text-amber-700 ring-amber-100",
-  red: "bg-red-50 text-red-700 ring-red-100",
-  violet: "bg-violet-50 text-violet-700 ring-violet-100",
-  slate: "bg-slate-100 text-slate-600 ring-slate-200",
-} as const;
 
 export function PageHeading({ title, description, badge, actions, className }: {
   title: string;
@@ -28,16 +20,16 @@ export function PageHeading({ title, description, badge, actions, className }: {
   </div>;
 }
 
-export function MetricCard({ label, value, detail, icon: Icon, tone = "blue", href }: {
+export function MetricCard({ label, value, detail, href }: {
   label: string;
   value: ReactNode;
   detail: string;
-  icon: LucideIcon;
-  tone?: keyof typeof tones;
+  icon?: LucideIcon;
+  tone?: "blue" | "green" | "amber" | "red" | "violet" | "slate";
   href?: string;
 }) {
-  const content = <><span className={cn("grid h-10 w-10 shrink-0 place-items-center rounded-xl ring-1", tones[tone])}><Icon aria-hidden="true" className="h-[18px] w-[18px]" /></span><span className="min-w-0 flex-1"><span className="block truncate text-[13px] font-semibold text-slate-600">{label}</span><span className="mt-1 block text-[27px] font-bold leading-none tracking-tight text-slate-950 tabular-nums">{value}</span><span className="mt-1.5 block truncate text-xs text-slate-500">{detail}</span></span></>;
-  const className = "panel group flex min-h-[108px] items-start gap-3 p-4 transition hover:border-blue-200 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 sm:p-5";
+  const content = <><span className="block truncate text-xs font-medium text-slate-500">{label}</span><span className="mt-2 block text-2xl font-semibold leading-none tracking-tight text-slate-950 tabular-nums sm:text-[28px]">{value}</span><span className="mt-2 block truncate text-xs text-slate-500">{detail}</span></>;
+  const className = "panel group flex min-h-[112px] flex-col justify-center border-slate-200 bg-white px-4 py-4 transition hover:border-blue-300 hover:bg-slate-50/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 sm:px-5";
   if (href) return <Link href={href} className={className}>{content}</Link>;
   return <div className={className}>{content}</div>;
 }
