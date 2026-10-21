@@ -107,7 +107,7 @@ begin
     ('Instant noodles chicken','Instant food',330,270),('Instant noodles seafood','Instant food',230,270),('Instant rice porridge','Instant food',95,270),('Canned sardines','Pantry',110,730),('Canned tuna','Pantry',92,730),('Canned sweet corn','Pantry',54,730),('White rice 1 kg','Pantry',72,365),('Cooking oil 1 L','Pantry',58,365),('Fish sauce 300 ml','Pantry',45,730),('Soy sauce 300 ml','Pantry',42,730),
     ('Potato chips original','Snacks',190,120),('Potato chips spicy','Snacks',165,120),('Crackers salted','Snacks',135,180),('Chocolate wafer','Snacks',170,180),('Peanut snack pack','Snacks',115,120),('Roasted peanuts 100 g','Snacks',72,120),('Chocolate bar','Snacks',105,240),('Hard candy bag','Snacks',65,365),('White bread loaf','Bakery',75,3),('Sweet bun','Bakery',100,3),
     ('Eggs 10 pack','Dairy',62,14),('Cheddar slices 10 pack','Dairy',40,45),('Instant coffee sachets','Beverages',170,365),('3-in-1 coffee sachets','Beverages',150,365),('Black tea bags 25 pack','Beverages',48,365),('Toothpaste 100 g','Personal care',36,1095),('Toothbrush single','Personal care',30,1095),('Laundry detergent 500 g','Household',44,730),('Dishwashing liquid 500 ml','Household',40,730),('Tissue pack','Household',96,730)
-  ) as v(name text,category text,monthly_demand integer,shelf_days integer);
+  ) as v(name,category,monthly_demand,shelf_days);
 
   insert into public.products(warehouse_id,name,sku,category,created_at)
     select branch_id,c.name,'YGN-'||lpad(p_branch_index::text,2,'0')||'-'||lpad(c.product_index::text,3,'0'),c.category,history_start::timestamptz from pg_temp.oceanblue_yangon_catalog c;
