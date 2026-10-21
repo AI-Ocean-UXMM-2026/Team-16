@@ -11,13 +11,24 @@ export async function POST() {
     const { data: plan, error: planError } = await supabase.rpc("prepare_yangon_convenience_reset");
     if (planError) return NextResponse.json({ error: planError.message }, { status: 400 });
 
-    const resetPlan = plan as { warehouse_ids?: unknown; replaced?: unknown } | null;
+    const resetPlan = plan as { warehouse_ids?: unknown; replaced?: unknown; reset_in_progress?: unknown } | null;
     const warehouseIds = Array.isArray(resetPlan?.warehouse_ids)
       ? resetPlan.warehouse_ids.filter((id): id is string => typeof id === "string")
       : [];
     for (const warehouseId of warehouseIds) {
-      const { error } = await supabase.rpc("delete_yangon_manifest_branch", { p_warehouse_id: warehouseId });
-      if (error) return NextResponse.json({ error: `Could not replace a tracked branch: ${error.message}` }, { status: 400 });
+      let done = false;
+      let chunks = 0;
+      while (!done && chunks < 250) {
+        const { data, error } = await supabase.rpc("delete_yangon_manifest_branch_chunk", { p_warehouse_id: warehouseId });
+        if (error) return NextResponse.json({ error: `Could not replace a tracked branch in small chunks: ${error.message}`, warehouseId, completedChunks: chunks }, { status: 400 });
+        done = (data as { done?: unknown } | null)?.done === true;
+        chunks += 1;
+      }
+      if (!done) return NextResponse.json({ error: "Branch replacement reached its safe chunk limit. Run the loader again to resume.", warehouseId, completedChunks: chunks }, { status: 400 });
+    }
+    if (resetPlan?.reset_in_progress === true) {
+      const { error } = await supabase.rpc("finish_yangon_convenience_reset");
+      if (error) return NextResponse.json({ error: `Tracked branch cleanup is not complete yet: ${error.message}` }, { status: 400 });
     }
 
     const branches: Record<string, unknown>[] = [];
