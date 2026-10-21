@@ -176,7 +176,7 @@ begin
     (select count(*) from public.product_batches b join public.products p on p.id=b.product_id where p.warehouse_id=branch_id),
     (select count(*) from public.stock_movements where warehouse_id=branch_id);
   delete from public.yangon_seed_progress where branch_index=p_branch_index;
-  select jsonb_build_object('complete',true,'already_seeded',false,'warehouses',1,'products',r.products_created,'batches',r.batches_created,'movements',r.movements_created,'history_start',history_start,'history_end',current_date)
+  select jsonb_build_object('complete',true,'already_seeded',false,'warehouses',1,'products',r.products_created,'batches',r.batches_created,'movements',r.movements_created,'history_start',date '2021-01-01','history_end',current_date)
     into result from public.demo_seed_runs r where r.warehouse_id=branch_id;
   return result;
 end;
