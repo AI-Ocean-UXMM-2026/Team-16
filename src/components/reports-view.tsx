@@ -10,7 +10,7 @@ import { formatQuantity } from "@/lib/utils";
 
 const DAY = 86_400_000;
 const EMPTY_DAILY_SUMMARY: NonNullable<DashboardData["dailyMovementSummary"]> = [];
-function dayKey(date: Date) { return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`; }
+function dayKey(date: Date) { return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}-${String(date.getUTCDate()).padStart(2, "0")}`; }
 
 export function ReportsView({ data, locale }: { data: DashboardData; locale: Locale }) {
   const my = locale === "my";
@@ -27,9 +27,11 @@ export function ReportsView({ data, locale }: { data: DashboardData; locale: Loc
     return [...map.entries()].map(([name, values]) => ({ name, ...values })).sort((a, b) => b.units - a.units);
   }, [products]);
   const daily = useMemo(() => {
+    const today = new Date(Date.now() + 6.5 * 60 * 60 * 1000);
+    today.setUTCHours(0, 0, 0, 0);
     const days = Array.from({ length: 14 }, (_, index) => {
-      const date = new Date(Date.now() - (13 - index) * DAY);
-      return { key: dayKey(date), label: date.toLocaleDateString(my ? "my-MM" : "en-US", { month: "short", day: "numeric" }), inQty: 0, outQty: 0 };
+      const date = new Date(today.getTime() - (13 - index) * DAY);
+      return { key: dayKey(date), label: date.toLocaleDateString(my ? "my-MM" : "en-US", { month: "short", day: "numeric", timeZone: "UTC" }), inQty: 0, outQty: 0 };
     });
     const lookup = new Map(days.map((day) => [day.key, day]));
     for (const movement of dailyMovementSummary) {

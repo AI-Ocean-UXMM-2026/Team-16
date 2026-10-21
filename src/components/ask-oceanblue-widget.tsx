@@ -34,7 +34,7 @@ export function AskOceanBlueWidget({ locale = "en" }: { locale?: Locale }) {
   const [error, setError] = useState("");
   const input = useRef<HTMLInputElement>(null);
   const panel = useRef<HTMLDivElement>(null);
-  const questionRotation = useRef(Math.floor(Math.random() * commonAskQuestions.length));
+  const questionRotation = useRef(0);
 
   useEffect(() => {
     if (open) input.current?.focus();

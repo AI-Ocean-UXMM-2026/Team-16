@@ -59,7 +59,7 @@ begin
       select r.warehouse_id from public.demo_seed_runs r
       union select p.warehouse_id from public.yangon_seed_progress p
     ) target;
-    delete from public.yangon_seed_progress;
+    delete from public.yangon_seed_progress where warehouse_id = any(reset_ids);
   end if;
   return jsonb_build_object(
     'warehouse_ids',reset_ids,

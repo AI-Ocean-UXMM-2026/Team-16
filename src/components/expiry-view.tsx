@@ -7,7 +7,7 @@ import { SearchableSelect } from "@/components/searchable-select";
 import { downloadCsv } from "@/lib/csv";
 import type { DashboardData } from "@/lib/types";
 import type { Locale } from "@/lib/locale";
-import { formatDate, formatQuantity } from "@/lib/utils";
+import { daysUntilDate, formatDate, formatQuantity } from "@/lib/utils";
 
 type ExpiryRow = { product: string; sku: string; category: string; batch: string; quantity: number; expiry: string | null; days: number | null };
 type ExpiryStatus = "all" | "expired" | "soon" | "ok" | "none";
@@ -23,7 +23,7 @@ export function ExpiryView({ data, locale }: { data: DashboardData; locale: Loca
   const number = new Intl.NumberFormat(my ? "my-MM" : "en-US");
   const all = useMemo(() => data.products.flatMap((product) => product.batches.filter((batch) => batch.quantity > 0).map((batch): ExpiryRow => {
     const expiry = batch.expiryDate;
-    const days = expiry ? Math.ceil((new Date(`${expiry}T23:59:59`).getTime() - Date.now()) / 86400000) : null;
+    const days = expiry ? daysUntilDate(expiry) : null;
     return { product: product.name, sku: product.sku, category: product.category, batch: batch.batchNumber, quantity: batch.quantity, expiry, days };
   })), [data.products]);
   const filtered = useMemo(() => {
