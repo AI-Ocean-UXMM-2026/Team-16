@@ -57,13 +57,17 @@ export async function POST() {
       }
     }
 
+    const { data: balance, error: balanceError } = await supabase.rpc("rebalance_yangon_training_scenarios");
+    if (balanceError) return NextResponse.json({ error: `The network was loaded, but its expiry and low-stock scenarios could not be prepared: ${balanceError.message}` }, { status: 400 });
+
     const totals = branches.reduce<{ warehouses: number; products: number; batches: number; movements: number }>((result, branch) => ({
       warehouses: result.warehouses + Number(branch.warehouses ?? 0),
       products: result.products + Number(branch.products ?? 0),
       batches: result.batches + Number(branch.batches ?? 0),
       movements: result.movements + Number(branch.movements ?? 0),
     }), { warehouses: 0, products: 0, batches: 0, movements: 0 });
-    return NextResponse.json({ data: { ...totals, replaced: Boolean(resetPlan?.replaced), resumable: true, history_start: "2021-01-01", history_end: new Date().toISOString().slice(0, 10) } });
+    const scenarios = balance as { movements_added?: number; expiring_batches?: number; restocked_products?: number } | null;
+    return NextResponse.json({ data: { ...totals, batches: totals.batches + Number(scenarios?.expiring_batches ?? 0), movements: totals.movements + Number(scenarios?.movements_added ?? 0), scenarios: balance, replaced: Boolean(resetPlan?.replaced), resumable: true, history_start: "2021-01-01", history_end: new Date().toISOString().slice(0, 10) } });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Yangon inventory could not be loaded." }, { status: 500 });
   }

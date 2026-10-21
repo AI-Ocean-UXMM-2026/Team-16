@@ -1,4 +1,5 @@
 import type { BatchRecord, RiskStatus } from "@/lib/types";
+import { daysUntilDate } from "@/lib/utils";
 
 export const RISK_RULES = {
   lookbackDays: 30,
@@ -14,9 +15,11 @@ export function getDaysOfSupply(available: number, averageDailyOut: number | nul
 }
 
 export function hasExpiryRisk(batches: BatchRecord[], referenceDate = new Date()) {
-  const deadline = new Date(referenceDate);
-  deadline.setDate(deadline.getDate() + RISK_RULES.expiryRiskDays);
-  return batches.some((batch) => batch.quantity > 0 && batch.expiryDate !== null && new Date(`${batch.expiryDate}T23:59:59`) <= deadline);
+  return batches.some((batch) => {
+    if (batch.quantity <= 0 || batch.expiryDate === null) return false;
+    const daysLeft = daysUntilDate(batch.expiryDate, referenceDate);
+    return daysLeft !== null && daysLeft <= RISK_RULES.expiryRiskDays;
+  });
 }
 
 export function getStockRisk(daysOfSupply: number | null): RiskStatus {
