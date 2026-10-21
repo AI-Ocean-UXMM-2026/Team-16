@@ -30,8 +30,9 @@ export async function getDashboardData(): Promise<DashboardData> {
     const supabase = await createSupabaseServerClient();
     const { data: userData } = await supabase.auth.getUser();
     if (!userData.user) return process.env.NODE_ENV === "development" ? demoDashboardData : { products: [], recentMovements: [], movementHistory: [], isDemo: false, dataAvailable: false, signedIn: false };
-    const { warehouseId } = await getWarehouseContext();
+    const { warehouseId, warehouses } = await getWarehouseContext();
     if (!warehouseId) return { products: [], recentMovements: [], movementHistory: [], isDemo: false, dataAvailable: true, signedIn: true };
+    const isDemo = warehouses.find((warehouse) => warehouse.id === warehouseId)?.name.startsWith("BreadTalk Demo —") ?? false;
     const { data, error } = await supabase
       .from("products")
       .select("id,name,sku,category,product_batches(id,batch_number,quantity,expiry_date),stock_movements(id,movement_type,quantity,reason,created_at,batch_id,product_id)")
@@ -42,7 +43,7 @@ export async function getDashboardData(): Promise<DashboardData> {
     const products = ((data ?? []) as DbProduct[]).map(mapProduct);
     const movementHistory = products.flatMap((product) => product.movements).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     const recentMovements = movementHistory.slice(0, 100);
-    return { products, recentMovements, movementHistory, isDemo: false, dataAvailable: true, warehouseId, signedIn: true };
+    return { products, recentMovements, movementHistory, isDemo, dataAvailable: true, warehouseId, signedIn: true };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : "OceanBlue could not read your warehouse data.";
     return { products: [], recentMovements: [], isDemo: false, dataAvailable: false, signedIn: true, errorMessage };
