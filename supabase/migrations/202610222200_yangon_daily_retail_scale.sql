@@ -172,7 +172,7 @@ begin
   end if;
 
   insert into public.demo_seed_runs(warehouse_id,seeded_by,history_start,products_created,batches_created,movements_created)
-  select branch_id,auth.uid(),history_start,products_per_branch,
+  select branch_id,auth.uid(),date '2021-01-01',products_per_branch,
     (select count(*) from public.product_batches b join public.products p on p.id=b.product_id where p.warehouse_id=branch_id),
     (select count(*) from public.stock_movements where warehouse_id=branch_id);
   delete from public.yangon_seed_progress where branch_index=p_branch_index;
