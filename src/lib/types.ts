@@ -36,6 +36,7 @@ export interface DashboardData {
   products: InventoryProduct[];
   recentMovements: MovementRecord[];
   movementHistory?: MovementRecord[];
+  dailyMovementSummary?: { day: string; type: MovementType; units: number; count: number }[];
   dataAvailable: boolean;
   warehouseId?: string;
   signedIn?: boolean;

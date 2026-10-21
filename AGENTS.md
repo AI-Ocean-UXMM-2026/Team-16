@@ -33,21 +33,22 @@ Accounts are provisioned by System Admin invitation only. Users can update their
 
 ## Yangon training network
 
-The admin-triggered training network contains one main warehouse and eight convenience stores in Yangon, 40 retail-relevant products per branch, integer quantities, batch expiry, and monthly history beginning January 2021. It is stored in Supabase and remains editable through normal workflows.
+The admin-triggered training network contains one main warehouse and eight convenience stores in Yangon, 200 retail product variants per branch, integer quantities, batch expiry, monthly reconciled history beginning January 2021, and one sale movement per product for each elapsed day of the current month. The network represents about 1,800 sale movements per day across nine branches at the current size. It is stored in Supabase and remains editable through normal workflows.
 
-Reset only rows linked to the private seed manifest. Reset functions must be admin-only, transactional, and reject any unrecognized manifest or untracked target branch. Never delete or rewrite non-seed branches, catalogs, or their stock history. Do not auto-seed on application startup. Keep training data clearly separate from production catalogs in admin-only configuration UI.
+Reset only rows linked to the private seed manifest. Reset functions must be admin-only, transactional, and reject any unrecognized manifest or untracked target branch. Seed in sequential 40-product chunks with persisted progress so a failed request can resume safely. Never delete or rewrite non-seed branches, catalogs, or their stock history. Do not auto-seed on application startup. Keep training data clearly separate from production catalogs in admin-only configuration UI.
 
 ## Risk, AI, and interface
 
 - Calculate stock risk deterministically from current batches, expiry, and recent Stock Out history before asking an LLM to explain it. Insufficient history stays unknown.
-- Ask OceanBlue is read-only, grounded in verified branch facts, and cannot mutate stock. Suggested prompts are questions, not claims, and must not imply unsupported data.
+- Ask OceanBlue is read-only, grounded in verified branch facts, and cannot mutate stock. Keep a static bank of 100 neutral questions in both supported locales; rotate three questions per open without a network call. Clear the prompt input as soon as a question is submitted. Suggestions must be questions, not claims, and must not imply unsupported data.
 - Keep the light, minimal, responsive interface consistent with `assets/OceanBlue_Design_Guide.md`. Use clear hierarchy, thin icon/text weights, compact searchable selects, and visible keyboard focus.
 - Every visible control must work. Tables scroll internally on both axes, with searchable row-count controls and pagination fixed outside the scrolling table body.
 - Include loading, empty, error, success, and validation states. Do not invent chart values or static data presented as live.
 
 ## Performance and verification
 
-- Avoid fetching multi-year history outside movement-history/report workflows that need it. Bound large reads and avoid duplicate data requests.
+- Avoid fetching multi-year history outside the Movement History workflow. Use database aggregates for 90-day outbound risk and daily report trends; keep recent raw movement reads bounded on Dashboard, Inventory, Reports, and AI Insights.
+- Keep route loading feedback visible during navigation and branch changes. Favor low-latency static UI behavior over network calls for non-data interactions.
 - Before delivery run `npm run typecheck`, `npm run lint`, `npm run build`, and `git diff --check`.
 - Add or run focused tests for validation and domain logic where possible. Do not start a local web server unless requested. Clearly distinguish automated checks from live Supabase/Vercel or browser UAT.
 

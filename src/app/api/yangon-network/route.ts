@@ -20,16 +20,30 @@ export async function POST() {
       if (error) return NextResponse.json({ error: `Could not replace a tracked branch: ${error.message}` }, { status: 400 });
     }
 
-    const branches = [];
+    const branches: Record<string, unknown>[] = [];
+    let completedChunks = 0;
     for (let branchIndex = 1; branchIndex <= 9; branchIndex += 1) {
-      const { data, error } = await supabase.rpc("seed_yangon_convenience_branch", { p_branch_index: branchIndex });
-      if (error) {
-        return NextResponse.json({
-          error: `The network load paused at branch ${branchIndex}. Completed branches are saved; run the load again to resume. ${error.message}`,
-          completedBranches: branches.length,
-        }, { status: 400 });
+      for (let productStart = 1; productStart <= 200; productStart += 40) {
+        const productEnd = Math.min(productStart + 39, 200);
+        const { data, error } = await supabase.rpc("seed_yangon_convenience_chunk", {
+          p_branch_index: branchIndex,
+          p_product_start: productStart,
+          p_product_end: productEnd,
+        });
+        if (error) {
+          return NextResponse.json({
+            error: `The network load paused at branch ${branchIndex}, products ${productStart}-${productEnd}. Completed work is saved; run the load again to resume. ${error.message}`,
+            completedBranches: branches.length,
+            completedChunks,
+          }, { status: 400 });
+        }
+        completedChunks += 1;
+        const chunk = data as Record<string, unknown>;
+        if (chunk.complete === true) {
+          branches.push(chunk);
+          break;
+        }
       }
-      branches.push(data as Record<string, unknown>);
     }
 
     const totals = branches.reduce<{ warehouses: number; products: number; batches: number; movements: number }>((result, branch) => ({

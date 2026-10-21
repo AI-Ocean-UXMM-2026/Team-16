@@ -9,12 +9,14 @@ import type { Locale } from "@/lib/locale";
 import { formatQuantity } from "@/lib/utils";
 
 const DAY = 86_400_000;
+const EMPTY_DAILY_SUMMARY: NonNullable<DashboardData["dailyMovementSummary"]> = [];
 function dayKey(date: Date) { return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`; }
 
 export function ReportsView({ data, locale }: { data: DashboardData; locale: Locale }) {
   const my = locale === "my";
   const products = data.products;
   const movements = data.movementHistory ?? data.recentMovements;
+  const dailyMovementSummary = data.dailyMovementSummary ?? EMPTY_DAILY_SUMMARY;
   const categories = useMemo(() => {
     const map = new Map<string, { products: number; units: number; risks: number }>();
     for (const product of products) {
@@ -30,18 +32,20 @@ export function ReportsView({ data, locale }: { data: DashboardData; locale: Loc
       return { key: dayKey(date), label: date.toLocaleDateString(my ? "my-MM" : "en-US", { month: "short", day: "numeric" }), inQty: 0, outQty: 0 };
     });
     const lookup = new Map(days.map((day) => [day.key, day]));
-    for (const movement of movements) {
-      const target = lookup.get(dayKey(new Date(movement.createdAt)));
+    for (const movement of dailyMovementSummary) {
+      const target = lookup.get(movement.day);
       if (!target) continue;
-      if (movement.type === "in") target.inQty += movement.quantity; else target.outQty += movement.quantity;
+      if (movement.type === "in") target.inQty += movement.units; else target.outQty += movement.units;
     }
     return days;
-  }, [movements, my]);
+  }, [dailyMovementSummary, my]);
   const number = new Intl.NumberFormat(my ? "my-MM" : "en-US", { maximumFractionDigits: 2 });
   const thirtyDaysAgo = Date.now() - 30 * DAY;
   const month = movements.filter((movement) => new Date(movement.createdAt).getTime() >= thirtyDaysAgo);
-  const monthIn = month.filter((movement) => movement.type === "in").reduce((sum, movement) => sum + movement.quantity, 0);
-  const monthOut = month.filter((movement) => movement.type === "out").reduce((sum, movement) => sum + movement.quantity, 0);
+  const monthlySummary = dailyMovementSummary.filter((movement) => new Date(`${movement.day}T23:59:59`).getTime() >= thirtyDaysAgo);
+  const monthIn = monthlySummary.length ? monthlySummary.filter((movement) => movement.type === "in").reduce((sum, movement) => sum + movement.units, 0) : month.filter((movement) => movement.type === "in").reduce((sum, movement) => sum + movement.quantity, 0);
+  const monthOut = monthlySummary.length ? monthlySummary.filter((movement) => movement.type === "out").reduce((sum, movement) => sum + movement.units, 0) : month.filter((movement) => movement.type === "out").reduce((sum, movement) => sum + movement.quantity, 0);
+  const monthlyMovementCount = monthlySummary.length ? monthlySummary.reduce((sum, movement) => sum + movement.count, 0) : month.length;
   const maxDaily = Math.max(1, ...daily.flatMap((day) => [day.inQty, day.outQty]));
   const totalUnits = products.reduce((sum, product) => sum + product.available, 0);
   const exportActions = <>
@@ -56,12 +60,12 @@ export function ReportsView({ data, locale }: { data: DashboardData; locale: Loc
       { label: my ? "လက်ကျန်ယူနစ်" : "Stock units on hand", value: number.format(totalUnits), hint: my ? `${number.format(products.length)} ကုန်ပစ္စည်း` : `${number.format(products.length)} active products` },
       { label: my ? "ရက် ၃၀ စတော့ဝင်" : "Units received, 30 days", value: number.format(monthIn), hint: my ? "မှတ်တမ်းတင်ထားသော ဝင်ကုန်" : "Recorded stock in", tone: "success" },
       { label: my ? "ရက် ၃၀ စတော့ထွက်" : "Units issued, 30 days", value: number.format(monthOut), hint: my ? "မှတ်တမ်းတင်ထားသော ထွက်ကုန်" : "Recorded stock out" },
-      { label: my ? "ရက် ၃၀ လှုပ်ရှားမှု" : "Movements, 30 days", value: number.format(month.length), hint: my ? "စာရင်းစစ်မှတ်တမ်း" : "Auditable entries" },
+      { label: my ? "ရက် ၃၀ လှုပ်ရှားမှု" : "Movements, 30 days", value: number.format(monthlyMovementCount), hint: my ? "စာရင်းစစ်မှတ်တမ်း" : "Auditable entries" },
       { label: my ? "အမျိုးအစား" : "Product categories", value: number.format(categories.length), hint: my ? "လက်ရှိဂိုဒေါင်" : "In selected warehouse" },
     ]} />
     <div className="grid gap-5 lg:grid-cols-2">
       <Panel><PanelHeader title={my ? "အမျိုးအစားအလိုက် လက်ကျန်" : "Inventory by category"} description={my ? "လက်ကျန်ပမာဏနှင့် အန္တရာယ်ရှိသော ကုန်ပစ္စည်းများ။" : "Products, units on hand, and items needing attention."} /><div className="overflow-x-auto"><table className="w-full min-w-[480px] border-collapse text-sm"><thead><tr><Th>{my ? "အမျိုးအစား" : "Category"}</Th><Th align="right">{my ? "ကုန်ပစ္စည်း" : "Products"}</Th><Th align="right">{my ? "ယူနစ်" : "Units"}</Th><Th align="right">{my ? "အန္တရာယ်" : "At risk"}</Th><Th className="w-28"><span className="sr-only">Share of stock</span></Th></tr></thead><tbody>{categories.map((category) => <tr key={category.name} className="h-12 border-b border-slate-200 last:border-0"><td className="px-3 font-medium text-slate-900">{category.name}</td><td className="px-3 text-right font-mono tabular-nums text-slate-500">{number.format(category.products)}</td><td className="px-3 text-right font-mono tabular-nums">{formatQuantity(category.units)}</td><td className="px-3 text-right font-mono tabular-nums text-slate-500">{number.format(category.risks)}</td><td className="px-3"><div className="h-2 rounded-full bg-slate-100" aria-hidden="true"><div className="h-2 rounded-full bg-blue-600" style={{ width: `${totalUnits ? category.units / totalUnits * 100 : 0}%` }} /></div></td></tr>)}</tbody></table>{!categories.length && <p className="p-8 text-center text-sm text-slate-500">{my ? "အစီရင်ခံရန် ကုန်ပစ္စည်းမရှိသေးပါ။" : "No products to report."}</p>}</div><p className="border-t border-slate-200 px-4 py-3 text-xs leading-5 text-slate-500">{my ? "ယူနစ်ကုန်ကျစရိတ်ကို သိမ်းဆည်းမထားသောကြောင့် ကုန်ကျစရိတ်တန်ဖိုးကို မဖော်ပြပါ။" : "Stock valuation is not shown because unit costs are not stored in this OceanBlue database."}</p></Panel>
-      <Panel><PanelHeader title={my ? "နေ့စဉ် ရွှေ့ပြောင်းမှု · ၁၄ ရက်" : "Daily movement, last 14 days"} description={my ? "လက်ခံရရှိမှုနှင့် ထုတ်ပေးမှုယူနစ်များ။" : "Units received and issued each day."} actions={<div className="flex items-center gap-3 text-xs text-slate-500"><span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-sm bg-emerald-600" />{my ? "ဝင်" : "In"}</span><span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-sm bg-blue-600" />{my ? "ထွက်" : "Out"}</span></div>} /><div className="p-4"><div className="flex h-44 items-end gap-1.5" role="img" aria-label={my ? "၁၄ ရက်အတွင်း စတော့ဝင်၊ ထွက်ပမာဏ" : "Daily units in and out for the last 14 days"}>{daily.map((day) => <div key={day.key} className="flex h-full min-w-0 flex-1 items-end gap-0.5" title={`${day.label}: ${number.format(day.inQty)} in, ${number.format(day.outQty)} out`}><span className="w-1/2 rounded-t-sm bg-emerald-600" style={{ height: `${day.inQty / maxDaily * 100}%`, minHeight: day.inQty ? 2 : 0 }} /><span className="w-1/2 rounded-t-sm bg-blue-600" style={{ height: `${day.outQty / maxDaily * 100}%`, minHeight: day.outQty ? 2 : 0 }} /></div>)}</div><div className="mt-2 flex justify-between text-xs text-slate-500"><span>{daily[0]?.label}</span><span>{daily.at(-1)?.label}</span></div>{!movements.length && <p className="mt-4 text-center text-xs text-slate-500">{my ? "လှုပ်ရှားမှုမှတ်တမ်းမရှိသေးပါ။" : "No movements recorded for this warehouse yet."}</p>}</div></Panel>
+      <Panel><PanelHeader title={my ? "နေ့စဉ် ရွှေ့ပြောင်းမှု · ၁၄ ရက်" : "Daily movement, last 14 days"} description={my ? "လက်ခံရရှိမှုနှင့် ထုတ်ပေးမှုယူနစ်များ။" : "Units received and issued each day."} actions={<div className="flex items-center gap-3 text-xs text-slate-500"><span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-sm bg-emerald-600" />{my ? "ဝင်" : "In"}</span><span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-sm bg-blue-600" />{my ? "ထွက်" : "Out"}</span></div>} /><div className="p-3"><div className="flex h-28 items-end gap-1.5" role="img" aria-label={my ? "၁၄ ရက်အတွင်း စတော့ဝင်၊ ထွက်ပမာဏ" : "Daily units in and out for the last 14 days"}>{daily.map((day) => <div key={day.key} className="flex h-full min-w-0 flex-1 items-end gap-0.5" title={`${day.label}: ${number.format(day.inQty)} in, ${number.format(day.outQty)} out`}><span className="w-1/2 rounded-t-sm bg-emerald-600" style={{ height: `${day.inQty / maxDaily * 100}%`, minHeight: day.inQty ? 2 : 0 }} /><span className="w-1/2 rounded-t-sm bg-blue-600" style={{ height: `${day.outQty / maxDaily * 100}%`, minHeight: day.outQty ? 2 : 0 }} /></div>)}</div><div className="mt-2 flex justify-between text-xs text-slate-500"><span>{daily[0]?.label}</span><span>{daily.at(-1)?.label}</span></div>{!movements.length && <p className="mt-4 text-center text-xs text-slate-500">{my ? "လှုပ်ရှားမှုမှတ်တမ်းမရှိသေးပါ။" : "No movements recorded for this warehouse yet."}</p>}</div></Panel>
     </div>
   </div>;
 }

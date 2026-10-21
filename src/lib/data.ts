@@ -6,19 +6,19 @@ import type { BatchRecord, DashboardData, InventoryProduct, MovementRecord, Move
 type DbBatch = { id: string; batch_number: string; quantity: number; expiry_date: string | null };
 type DbMovement = { id: string; movement_type: MovementType; quantity: number; reason: string | null; created_at: string; batch_id: string | null; product_id: string };
 type DbProduct = { id: string; name: string; sku: string; category: string; product_batches: DbBatch[] | null };
+type DbOutboundSummary = { product_id: string; movement_count: number; outbound_units: number };
+type DbDailySummary = { movement_day: string; movement_type: MovementType; unit_total: number; movement_count: number };
 const MOVEMENT_PAGE_SIZE = 1_000;
 
 function movementFor(productName: string, movement: DbMovement, batchNumbers: Map<string, string>): MovementRecord {
   return { id: movement.id, productName, batchNumber: movement.batch_id ? batchNumbers.get(movement.batch_id) ?? null : null, type: movement.movement_type, quantity: Number(movement.quantity), reason: movement.reason, createdAt: movement.created_at };
 }
 
-function mapProduct(product: DbProduct, movements: DbMovement[]): InventoryProduct {
+function mapProduct(product: DbProduct, movements: DbMovement[], outboundSummary?: DbOutboundSummary): InventoryProduct {
   const batches = product.product_batches ?? [];
   const available = batches.reduce((total, batch) => total + Number(batch.quantity), 0);
-  const cutoff = new Date();
-  cutoff.setDate(cutoff.getDate() - RISK_RULES.lookbackDays);
-  const recentOut = movements.filter((movement) => movement.movement_type === "out" && new Date(movement.created_at) >= cutoff);
-  const averageDailyOut = recentOut.length >= RISK_RULES.minimumOutboundMovements ? recentOut.reduce((total, movement) => total + Number(movement.quantity), 0) / RISK_RULES.lookbackDays : null;
+  const outboundCount = Number(outboundSummary?.movement_count ?? 0);
+  const averageDailyOut = outboundCount >= RISK_RULES.minimumOutboundMovements ? Number(outboundSummary?.outbound_units ?? 0) / RISK_RULES.lookbackDays : null;
   const mappedBatches: BatchRecord[] = batches.map((batch) => ({ id: batch.id, batchNumber: batch.batch_number, quantity: Number(batch.quantity), expiryDate: batch.expiry_date }));
   const daysOfSupply = getDaysOfSupply(available, averageDailyOut);
   const batchNumbers = new Map(batches.map((batch) => [batch.id, batch.batch_number]));
@@ -62,21 +62,38 @@ async function readMovements(supabase: Awaited<ReturnType<typeof createSupabaseS
   return rows;
 }
 
-export async function getDashboardData(options: { includeFullMovementHistory?: boolean } = {}): Promise<DashboardData> {
+export async function getDashboardData(options: { includeFullMovementHistory?: boolean; includeDailyMovementSummary?: boolean } = {}): Promise<DashboardData> {
   try {
     const supabase = await createSupabaseServerClient();
     const { data: userData } = await supabase.auth.getUser();
     if (!userData.user) return { products: [], recentMovements: [], movementHistory: [], dataAvailable: false, signedIn: false };
     const { warehouseId } = await getWarehouseContext();
     if (!warehouseId) return { products: [], recentMovements: [], movementHistory: [], dataAvailable: true, signedIn: true };
-    const [productResult, movementRows] = await Promise.all([
+    const dailySummaryRequest = async () => {
+      if (!options.includeDailyMovementSummary) return { rows: [] as DbDailySummary[], error: null };
+      const { data, error } = await supabase.rpc("get_warehouse_daily_movement_summary", { p_warehouse_id: warehouseId, p_days: 30 });
+      return { rows: (data ?? []) as DbDailySummary[], error };
+    };
+    const [productResult, movementRows, outboundResult, dailySummaryResult] = await Promise.all([
       supabase.from("products")
         .select("id,name,sku,category,product_batches(id,batch_number,quantity,expiry_date)")
-        .eq("warehouse_id", warehouseId).is("archived_at", null).order("created_at", { ascending: false }),
+        .eq("warehouse_id", warehouseId).is("archived_at", null)
+        // Zero-quantity historical batches do not affect live stock, expiry risk,
+        // or available batches. Keep the normal workspace read bounded to stock on hand.
+        .gt("product_batches.quantity", 0)
+        .order("created_at", { ascending: false }),
       readMovements(supabase, warehouseId, options.includeFullMovementHistory === true),
+      supabase.rpc("get_warehouse_outbound_summary", { p_warehouse_id: warehouseId, p_days: RISK_RULES.lookbackDays }),
+      dailySummaryRequest(),
     ]);
     if (productResult.error) throw productResult.error;
+    if (outboundResult.error) throw outboundResult.error;
+    if (dailySummaryResult.error) throw dailySummaryResult.error;
     const dbProducts = (productResult.data ?? []) as DbProduct[];
+    const outboundRows = (outboundResult.data ?? []) as DbOutboundSummary[];
+    const outboundByProduct = new Map<string, DbOutboundSummary>(outboundRows.map((summary) => {
+      return [summary.product_id, summary];
+    }));
     const names = new Map(dbProducts.map((product) => [product.id, product.name]));
     const batches = new Map(dbProducts.flatMap((product) => (product.product_batches ?? []).map((batch) => [batch.id, batch.batch_number] as const)));
     const byProduct = new Map<string, DbMovement[]>();
@@ -86,8 +103,9 @@ export async function getDashboardData(options: { includeFullMovementHistory?: b
       byProduct.set(movement.product_id, list);
       return movementFor(names.get(movement.product_id) ?? "Archived product", movement, batches);
     });
-    const products = dbProducts.map((product) => mapProduct(product, byProduct.get(product.id) ?? []));
-    return { products, recentMovements: movementHistory.slice(0, 100), movementHistory, dataAvailable: true, warehouseId, signedIn: true };
+    const products = dbProducts.map((product) => mapProduct(product, byProduct.get(product.id) ?? [], outboundByProduct.get(product.id)));
+    const dailyMovementSummary = dailySummaryResult.rows.map((row) => ({ day: row.movement_day, type: row.movement_type, units: Number(row.unit_total), count: Number(row.movement_count) }));
+    return { products, recentMovements: movementHistory.slice(0, 100), movementHistory, dailyMovementSummary, dataAvailable: true, warehouseId, signedIn: true };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : "OceanBlue could not read your warehouse data.";
     return { products: [], recentMovements: [], dataAvailable: false, signedIn: true, errorMessage };

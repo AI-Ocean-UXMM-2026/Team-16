@@ -19,14 +19,15 @@ Present a calm, lightweight workspace for operators who need to see what is avai
 
 - Desktop sidebar is fixed and visually separated from page content. Collapse to usable icons; on small screens use a working off-canvas menu.
 - Keep the global search, Recently Viewed, sidebar toggle, responsive navigation, EN/MM choice, notification count, branch picker, avatar/settings menu, and sign out.
+- The OceanBlue mark and title at the top of the sidebar use the shared favicon asset and link to `/`, which redirects authenticated users to Dashboard. Branch changes show an inline spinner and the shared top progress indicator until refreshed branch data arrives.
 - Recently Viewed is user-specific and holds at most ten destinations.
-- Ask OceanBlue is a fixed circular chat button with a centered chat icon. It never expands on hover. The panel closes with Escape, its close button, or an outside click. Opening it leaves the question empty and requests fresh AI-generated suggested questions; fallback questions are allowed only if the AI service is unavailable. Suggestions must be neutral, grounded prompts, not fabricated answers.
+- Ask OceanBlue is a fixed circular chat button with a centered chat icon. It never expands on hover. The panel closes with Escape, its close button, or an outside click. Opening it leaves the question empty and rotates three prompts from a static bank of 100 common questions in the active locale. Opening the panel must not make a network request for suggestions. Clear the question field immediately when a question is sent.
 
 ## Page patterns
 
 ### Dashboard
 
-Use a compact KPI strip and clear decision panels for urgent stock, expiry risk, and recent movements. Date-range choices and every other control must change the displayed data. Avoid unnecessary icons and fake/static charts.
+Use a compact KPI strip and clear decision panels for urgent stock, expiry risk, and recent movements. Date-range choices and every other control must change the displayed data. Keep the 14-day movement chart compact, about 112px tall. Avoid unnecessary icons and fake/static charts.
 
 ### Inventory and expiry
 
@@ -38,7 +39,7 @@ Present stock history as an auditable table with aligned actions, fixed footer, 
 
 ### Reports and AI
 
-Reports reflect the selected warehouse. Place the “Download selected warehouse data as CSV” section at the top of the report content with clear exports for inventory, movements, and batches. AI risk analysis is deterministic first and explainable; uncertain estimates remain unknown. Ask OceanBlue can explain verified facts only and never mutates inventory.
+Reports reflect the selected warehouse. Keep inventory, movement, and batch export actions aligned in the Reports heading row. Use database daily aggregates for trend summaries rather than loading all transaction rows. AI risk analysis is deterministic first and explainable; uncertain estimates remain unknown. Ask OceanBlue can explain verified facts only and never mutates inventory.
 
 ### Settings
 
@@ -53,4 +54,4 @@ Keep Profile & password, User access, and Configuration separated by tabs. Only 
 
 ## Data integrity
 
-Supabase is authoritative. Stock is the sum of batches; each stock change is a database movement. The Yangon training network is separate from user-created catalogs and can only replace manifest-tracked rows. Preserve all other branches and history. Ask OceanBlue explanations and prompt suggestions must be read-only and based on verified data.
+Supabase is authoritative. Stock is the sum of batches; each stock change is a database movement. The Yangon training network has one main warehouse and eight stores with 200 product variants per branch. Historical stock is reconciled monthly from January 2021; current-month sales are stored daily, totaling about 1,800 sale movements per day across the network. Seed writes use sequential 40-product database chunks and must resume after failure. The network is separate from user-created catalogs and can only replace manifest-tracked rows. Preserve all other branches and history. Ask OceanBlue explanations and prompt questions must be read-only and based on verified data.
