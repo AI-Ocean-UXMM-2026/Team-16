@@ -1,4 +1,3 @@
-import { demoDashboardData } from "@/lib/demo-data";
 import { getDaysOfSupply, getDisplayRisk, hasExpiryRisk, RISK_RULES } from "@/lib/risk";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getWarehouseContext } from "@/lib/warehouse";
@@ -67,10 +66,9 @@ export async function getDashboardData(options: { includeFullMovementHistory?: b
   try {
     const supabase = await createSupabaseServerClient();
     const { data: userData } = await supabase.auth.getUser();
-    if (!userData.user) return process.env.NODE_ENV === "development" ? demoDashboardData : { products: [], recentMovements: [], movementHistory: [], isDemo: false, dataAvailable: false, signedIn: false };
-    const { warehouseId, warehouses } = await getWarehouseContext();
-    if (!warehouseId) return { products: [], recentMovements: [], movementHistory: [], isDemo: false, dataAvailable: true, signedIn: true };
-    const isDemo = warehouses.find((warehouse) => warehouse.id === warehouseId)?.name.startsWith("BreadTalk Demo —") ?? false;
+    if (!userData.user) return { products: [], recentMovements: [], movementHistory: [], dataAvailable: false, signedIn: false };
+    const { warehouseId } = await getWarehouseContext();
+    if (!warehouseId) return { products: [], recentMovements: [], movementHistory: [], dataAvailable: true, signedIn: true };
     const [productResult, movementRows] = await Promise.all([
       supabase.from("products")
         .select("id,name,sku,category,product_batches(id,batch_number,quantity,expiry_date)")
@@ -89,9 +87,9 @@ export async function getDashboardData(options: { includeFullMovementHistory?: b
       return movementFor(names.get(movement.product_id) ?? "Archived product", movement, batches);
     });
     const products = dbProducts.map((product) => mapProduct(product, byProduct.get(product.id) ?? []));
-    return { products, recentMovements: movementHistory.slice(0, 100), movementHistory, isDemo, dataAvailable: true, warehouseId, signedIn: true };
+    return { products, recentMovements: movementHistory.slice(0, 100), movementHistory, dataAvailable: true, warehouseId, signedIn: true };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : "OceanBlue could not read your warehouse data.";
-    return { products: [], recentMovements: [], isDemo: false, dataAvailable: false, signedIn: true, errorMessage };
+    return { products: [], recentMovements: [], dataAvailable: false, signedIn: true, errorMessage };
   }
 }

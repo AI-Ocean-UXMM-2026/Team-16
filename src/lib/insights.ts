@@ -4,13 +4,13 @@ import { formatQuantity } from "@/lib/utils";
 
 function lineFor(product: InventoryProduct, locale: Locale) {
   if (locale === "my") {
-    if (product.risk === "stockout_risk") return `${product.name} — လက်ကျန် ${formatQuantity(product.available)} ခု။ မကြာသေးမီက ထုတ်ပေးနှုန်း ${product.averageDailyOut?.toFixed(1) ?? "မသိရှိရ"} ခု/ရက်ဖြစ်ပြီး လက်ကျန်သည် ခန့်မှန်း ${product.daysOfSupply?.toFixed(1) ?? "မတွက်ချက်နိုင်"} ရက်ခန့် ခံနိုင်ပါသည်။`;
-    if (product.expiryRisk) { const batch = product.batches.find((item) => item.expiryDate !== null); return `${product.name} — အသုတ် ${batch?.batchNumber ?? "—"} တွင် ${formatQuantity(batch?.quantity ?? product.available)} ခုရှိပြီး ${batch?.expiryDate ?? "မကြာမီ"} တွင် သက်တမ်းကုန်ပါမည်။`; }
-    if (product.risk === "low_stock") return `${product.name} — လက်ကျန်သည် ခန့်မှန်း ${product.daysOfSupply?.toFixed(1) ?? "မတွက်ချက်နိုင်"} ရက်စာဖြစ်သည်။`;
-    return `${product.name} — လိုအပ်ချက်ခန့်မှန်းရန် မှတ်တမ်းမလုံလောက်ပါ။`;
+    if (product.risk === "stockout_risk") return `${product.name}  -  လက်ကျန် ${formatQuantity(product.available)} ခု။ မကြာသေးမီက ထုတ်ပေးနှုန်း ${product.averageDailyOut?.toFixed(1) ?? "မသိရှိရ"} ခု/ရက်ဖြစ်ပြီး လက်ကျန်သည် ခန့်မှန်း ${product.daysOfSupply?.toFixed(1) ?? "မတွက်ချက်နိုင်"} ရက်ခန့် ခံနိုင်ပါသည်။`;
+    if (product.expiryRisk) { const batch = product.batches.find((item) => item.expiryDate !== null); return `${product.name}  -  အသုတ် ${batch?.batchNumber ?? " - "} တွင် ${formatQuantity(batch?.quantity ?? product.available)} ခုရှိပြီး ${batch?.expiryDate ?? "မကြာမီ"} တွင် သက်တမ်းကုန်ပါမည်။`; }
+    if (product.risk === "low_stock") return `${product.name}  -  လက်ကျန်သည် ခန့်မှန်း ${product.daysOfSupply?.toFixed(1) ?? "မတွက်ချက်နိုင်"} ရက်စာဖြစ်သည်။`;
+    return `${product.name}  -  လိုအပ်ချက်ခန့်မှန်းရန် မှတ်တမ်းမလုံလောက်ပါ။`;
   }
   if (product.risk === "stockout_risk") return `${product.name} has ${formatQuantity(product.available)} remaining; recent outflow is ${product.averageDailyOut?.toFixed(1) ?? "unknown"}/day, or about ${product.daysOfSupply?.toFixed(1) ?? "unknown"} days of supply.`;
-  if (product.expiryRisk) { const batch = product.batches.find((item) => item.expiryDate !== null); return `${product.name} has ${formatQuantity(batch?.quantity ?? product.available)} in batch ${batch?.batchNumber ?? "—"}, expiring ${batch?.expiryDate ?? "soon"}.`; }
+  if (product.expiryRisk) { const batch = product.batches.find((item) => item.expiryDate !== null); return `${product.name} has ${formatQuantity(batch?.quantity ?? product.available)} in batch ${batch?.batchNumber ?? " - "}, expiring ${batch?.expiryDate ?? "soon"}.`; }
   if (product.risk === "low_stock") return `${product.name} has an estimated ${product.daysOfSupply?.toFixed(1) ?? "unknown"} days of supply.`;
   return `${product.name} has insufficient demand history for an estimate.`;
 }
@@ -26,7 +26,7 @@ export function deterministicAnswer(data: DashboardData, question = "", locale: 
     : "The current warehouse data could not be read.\n\nNext steps\n- Check the connection and try again.\n- If the problem continues, contact your System Admin.";
   if (!data.products.length) return myanmar
     ? "ဤဂိုဒေါင်တွင် စစ်ဆေးနိုင်သော ကုန်ပစ္စည်းမှတ်တမ်း မရှိသေးပါ။\n\nစတင်ရန်\n- BreadTalk သရုပ်ပြဒေတာကွန်ရက်ကို ထည့်သွင်းပါ၊ သို့မဟုတ် ကုန်ပစ္စည်းများကို ထည့်ပါ။\n- ကုန်ပစ္စည်းထည့်ပြီးနောက် လက်ကျန်ဝင်မှတ်တမ်းများကို မှတ်တမ်းတင်ပါ။\n\nမှတ်ချက်\nဒေတာရရှိလာသည့်အခါ စတော့အန္တရာယ်၊ သက်တမ်းကုန်ရက်နှင့် လက်ကျန်ခန့်မှန်းချက်များကို ဆန်းစစ်ပေးနိုင်ပါမည်။"
-    : "There are no inventory records to analyze in this warehouse yet.\n\nGet started\n- Load the BreadTalk demo network, or add your products.\n- Record Stock In movements to establish current quantities.\n\nData note\nOnce records are available, OceanBlue can assess stock risk, expiry, and estimated supply.";
+    : "There are no inventory records to analyze in this warehouse yet.\n\nGet started\n- Load BreadTalk history, or add your products.\n- Record Stock In movements to establish current quantities.\n\nData note\nOnce records are available, OceanBlue can assess stock risk, expiry, and estimated supply.";
   const priorities = getPriorityProducts(data);
   if (!priorities.length) return myanmar
     ? `အနှစ်ချုပ်\nလက်ရှိဒေတာအရ ချက်ချင်းအရေးယူရန်လိုအပ်သော စတော့အန္တရာယ် မတွေ့ပါ။\n\nနောက်တစ်ဆင့်\n- ကုန်ရွှေ့ပြောင်းမှုများကို ဆက်လက်မှတ်တမ်းတင်ပါ။\n\nဒေတာမှတ်ချက်\nလက်ကျန်ခန့်မှန်းချက်သည် မကြာသေးမီက ကုန်ပစ္စည်းထုတ်ပေးမှုမှတ်တမ်းများအပေါ် မူတည်ပါသည်။`

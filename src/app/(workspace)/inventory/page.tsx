@@ -12,5 +12,5 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
     getLocale(),
   ]);
 
-  return <InventoryClient key={`${params.q ?? ""}:${params.risk ?? ""}:${params.add ?? ""}`} products={data.products} categories={categoryResult.categories} categoryLoadError={categoryResult.unavailable} isDemo={data.isDemo} canEdit={context.userRole === "system_admin" || context.userRole === "editor"} initialQuery={params.q ?? ""} initialRisk={params.risk ?? "all"} initialAdd={params.add === "1"} locale={locale} />;
+  return <InventoryClient key={`${params.q ?? ""}:${params.risk ?? ""}:${params.add ?? ""}`} products={data.products} categories={categoryResult.categories} categoryLoadError={categoryResult.unavailable} canEdit={context.userRole === "system_admin" || context.userRole === "editor"} initialQuery={params.q ?? ""} initialRisk={params.risk ?? "all"} initialAdd={params.add === "1"} locale={locale} />;
 }

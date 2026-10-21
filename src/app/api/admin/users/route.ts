@@ -20,18 +20,24 @@ export async function GET(request: Request) {
   if (!warehouseId || !z.string().uuid().safeParse(warehouseId).success) return NextResponse.json({ error: "Choose a valid warehouse." }, { status: 400 });
   try {
     const admin = createSupabaseAdminClient();
-    const { data: members, error } = await admin.from("warehouse_members").select("user_id,role").eq("warehouse_id", warehouseId).order("created_at");
+    const [{ data: members, error }, { data: admins, error: adminError }] = await Promise.all([
+      admin.from("warehouse_members").select("user_id,role").eq("warehouse_id", warehouseId).order("created_at"),
+      admin.from("system_admins").select("user_id"),
+    ]);
     if (error) throw error;
-    const ids = (members ?? []).map((member) => member.user_id);
-    if (!ids.length) return NextResponse.json({ users: [] });
-    const [{ data: profiles, error: profileError }, { data: admins, error: adminError }] = await Promise.all([admin.from("profiles").select("id,full_name,username").in("id", ids), admin.from("system_admins").select("user_id").in("user_id", ids)]);
-    if (profileError) throw profileError; if (adminError) throw adminError;
+    if (adminError) throw adminError;
     const adminIds = new Set((admins ?? []).map((item) => item.user_id));
+    const memberIds = new Set((members ?? []).map((member) => member.user_id));
+    const ids = [...new Set([...(members ?? []).map((member) => member.user_id), ...adminIds])];
+    if (!ids.length) return NextResponse.json({ users: [] });
+    const { data: profiles, error: profileError } = await admin.from("profiles").select("id,full_name,username").in("id", ids);
+    if (profileError) throw profileError; if (adminError) throw adminError;
     const profileById = new Map((profiles ?? []).map((profile) => [profile.id, profile]));
-    const users = await Promise.all((members ?? []).map(async (member) => {
-      const { data: authUser } = await admin.auth.admin.getUserById(member.user_id);
-      const profile = profileById.get(member.user_id);
-      return { userId: member.user_id, fullName: profile?.full_name ?? "", username: profile?.username ?? "", email: authUser.user?.email ?? "", role: adminIds.has(member.user_id) ? "system_admin" : member.role };
+    const roleById = new Map((members ?? []).map((member) => [member.user_id, member.role]));
+    const users = await Promise.all(ids.map(async (userId) => {
+      const { data: authUser } = await admin.auth.admin.getUserById(userId);
+      const profile = profileById.get(userId);
+      return { userId, fullName: profile?.full_name ?? "", username: profile?.username ?? "", email: authUser.user?.email ?? "", role: adminIds.has(userId) ? "system_admin" : roleById.get(userId) ?? "viewer", isGlobalAdmin: adminIds.has(userId), hasBranchMembership: memberIds.has(userId) };
     }));
     return NextResponse.json({ users });
   } catch (error) {
