@@ -1,4 +1,3 @@
--- BreadTalk demo data is intentionally manager-triggered from the empty-state UI.
--- It is not automatically inserted into a production warehouse.
--- After signing in to an empty warehouse, use “Load BreadTalk demo data” in OceanBlue,
--- or call `select public.seed_breadtalk_demo();` through an authenticated application request.
+-- Intentionally empty. The Yangon convenience network is generated only when a
+-- System Admin explicitly requests it from Settings -> Configuration, using the
+-- manifest-checked reset_yangon_convenience_network() RPC.

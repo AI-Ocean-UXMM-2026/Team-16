@@ -6,7 +6,7 @@ const movementSchema = z.object({
   warehouseId: z.string().uuid(),
   productId: z.string().uuid(),
   movementType: z.enum(["in", "out"]),
-  quantity: z.coerce.number().positive().max(1_000_000),
+  quantity: z.coerce.number().int("Quantity must be a whole number.").positive().max(1_000_000),
   batchId: z.string().uuid().nullable(),
   batchNumber: z.string().trim().max(80).nullable(),
   expiryDate: z.string().date().nullable(),

@@ -1,20 +1,17 @@
 # OceanBlue
 
-OceanBlue is an AI-assisted inventory decision tool for SME food warehouses. It tracks products, batches, expiry dates, and auditable stock movements; calculates transparent stock risks; and offers read-only recommendations grounded in current warehouse data.
+OceanBlue is an AI-assisted inventory workspace for small retail and food operators. It tracks products, batches, expiry dates, and auditable stock movements; calculates explainable stock risks; and provides read-only AI assistance based on verified warehouse data.
 
-## Features
+## Product capabilities
 
-- Dashboard with stock KPIs, urgent risks, movement history, and date-range controls.
-- Searchable inventory with product details, batch expiry, product creation/editing, and configurable product categories.
-- Atomic Stock In / Stock Out transactions with audit history.
-- Deterministic stockout and expiry risk estimates, plus AI Insights.
-- Floating Ask OceanBlue assistant across the authenticated workspace. The assistant cannot change stock.
-- English and Myanmar language selection.
-- System Admin, Editor, and Viewer roles; administrator-managed invitations; per-user profile and password settings.
-- System Admin configuration for product categories and branches. Branch removal archives data instead of deleting it.
-- Per-user recently viewed pages and workspace notifications.
+- Dashboard, searchable inventory, batch expiry, stock movements, reports, and AI insights.
+- Atomic Stock In / Stock Out with positive whole-number quantities and auditable movement history.
+- Admin-managed categories and branches; System Admin, Editor, and Viewer roles.
+- Floating Ask OceanBlue assistant with fresh suggested questions, verified-data answers, and no stock mutation capability.
+- Responsive light-first UI, internal table scrolling, searchable filters and page-size selectors, English and Myanmar language support.
+- Optional Yangon practice dataset: one main warehouse and eight convenience stores, 40 products per branch, integer stock, monthly history from January 2021 to the current month.
 
-## Local setup
+## Local development
 
 ```bash
 npm install
@@ -22,22 +19,23 @@ cp .env.example .env.local
 npm run dev
 ```
 
-Fill `.env.local` with the app's Supabase Project URL and publishable key, plus server-only `SUPABASE_SERVICE_ROLE_KEY`, `OPENAI_API_KEY`, and `OPENAI_MODEL` values as applicable. The service-role key and OpenAI key must never be prefixed with `NEXT_PUBLIC_` or exposed to browser code. Keep `.env.local` untracked and do not paste secrets into source files.
+Configure Supabase URL and publishable/anon key. Server-side user provisioning requires `SUPABASE_SERVICE_ROLE_KEY`; AI explanations and generated prompt suggestions use server-only `OPENAI_API_KEY` and `OPENAI_MODEL`. Never use the service-role or OpenAI secret with a `NEXT_PUBLIC_` prefix. Keep `.env.local` private and untracked.
 
-Username sign-in and System Admin user/branch management require the service-role key in the server environment. Email sign-in uses Supabase Auth. Configure Supabase Auth's Site URL and Redirect URLs to include the local and deployed `/auth/callback` destinations so invitation links can establish a session.
+Set the Supabase Auth Site URL and Redirect URLs for local and production `/auth/callback` routes. Public sign-up is disabled; a System Admin provisions accounts by invitation.
 
-## Supabase setup
+## Database
 
-Create or select a Supabase project, then apply every migration in `supabase/migrations/` in filename order (or link the project and run `supabase db push`). The migrations create the inventory schema, BreadTalk demo loader, account roles, username-only lookup support, admin provisioning, categories, and archived branches. Do not apply an older migration after a newer one.
+Apply all SQL files in `supabase/migrations/` in filename order. The latest forward migration adds the Yangon network loader, constrains movement creation to whole-unit quantities, and disables superseded seed entry points. Seed data is not created automatically. After the migration is applied, a System Admin can run “Reset & load Yangon inventory” from Settings → Configuration.
 
-Enable email invitations in Supabase Auth and configure a working email provider/SMTP for production. Public account creation is intentionally disabled by the database provisioning trigger; System Admins invite users through Settings → User access.
+The reset transaction removes only warehouse IDs recorded in the private seed manifest and verifies the expected legacy network before replacement. Untracked warehouses, catalogs, and stock history are preserved. The loader creates 9 branches, 360 products, 25,200 batches, and 51,480 movement records for 2021 through the current month (counts vary with the current month). Quantities are integers; expired batches remain in history while current stock is reconciled.
 
-All product data is scoped to a selected branch. The System Admin Configuration tab manages shared category options and branches. Removing a branch archives it and retains its inventory and movement history.
-
-## Checks
+## Quality checks
 
 ```bash
 npm run typecheck
 npm run lint
 npm run build
+git diff --check
 ```
+
+These checks do not replace authenticated browser UAT or a production speed measurement. Verify database migrations and role/branch isolation in the configured Supabase project before relying on the training network.
