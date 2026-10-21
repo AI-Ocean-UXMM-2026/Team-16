@@ -152,7 +152,7 @@ begin
   ) insert into pg_temp.oceanblue_yangon_batch_map select product_id,batch_number,id from created;
 
   insert into public.stock_movements(warehouse_id,product_id,batch_id,movement_type,quantity,reason,created_by,created_at)
-  select branch_id,e.product_id,b.batch_id,x.movement_type,x.quantity,x.reason,x.created_at
+  select branch_id,e.product_id,b.batch_id,x.movement_type,x.quantity,x.reason,auth.uid(),x.created_at
   from pg_temp.oceanblue_yangon_events e
   join pg_temp.oceanblue_yangon_batch_map b on b.product_id=e.product_id and b.batch_number='Y'||to_char(e.month_start,'YYMM')||'-'||lpad(e.product_index::text,3,'0')
   cross join lateral (
