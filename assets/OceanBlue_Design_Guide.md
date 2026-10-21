@@ -1,80 +1,75 @@
-# OceanBlue — Design & Development Guide
-Team: Ocean Blue | Product: OceanBlue | Buildathon MVP
+# OceanBlue — Design Guide
 
-## Product principles
-- Prioritize inventory risks and recommended actions over decorative analytics.
-- Calm, precise, accessible B2B SaaS UI with an Ocean Blue visual identity.
-- Design for one user: SME food warehouse/inventory manager.
-- Primary workflow: Track → Predict → Alert → Recommend.
+Team Ocean Blue · Inventory operations workspace
+
+## Design intent
+
+Create a clean, minimal, lightweight inventory manager for food warehouses. Use the supplied `inventory-manager` GitHub project as the primary page-layout and interaction reference. The OceanBlue product shell remains its own: global search, Recently Viewed, sidebar toggle, responsive navigation, EN/MM language, notifications, branch dropdown, avatar menu/settings, and floating Ask OceanBlue bubble.
+
+Prioritize the operator's next decision over decoration. Avoid dashboard icon clutter, ornamental charts, static-looking controls, and cards that imply an interaction without working. Every KPI, filter, table action, button, and chart control must either navigate, filter, update, or be clearly non-interactive.
 
 ## Visual system
-- Primary: #2563EB; dark navy: #0F172A; background: #F8FAFC; surface: #FFFFFF; border: #E2E8F0.
-- Healthy: #16A34A; low stock: #D97706; stockout risk: #DC2626; expiry risk: #7C3AED.
-- Google Font: Inter for all UI; optional Roboto Mono for stock and SKU figures.
-- Type: headings 24–28px/600; section headings 18px/600; body and table 14px; supporting labels 12px; KPI 28–32px.
-- Base spacing 4px; cards 20–24px padding; 12px radius; inputs 8px radius; desktop sidebar 240px; table rows 48–56px.
-- Use semantic labels alongside colors; accessible keyboard focus; legible numeric columns.
 
-## Mobbin references
-- Square dashboard: https://mobbin.com/screens/36ae5076-f9b4-488d-a3b9-ace1d89c8aba
-- Shopify product management: https://mobbin.com/screens/d9deb551-88bf-4c93-91b3-43ef6659ccef
-- Square product list: https://mobbin.com/screens/78f2c018-e2c9-440c-8b5c-e631b2539163
-- Xero form entry: https://mobbin.com/screens/0be26afa-c93c-48ba-9f22-169a82946a6b
-These links are UI references, not designs to copy pixel-for-pixel.
+- Primary blue `#2563EB`; navy `#0F172A`; canvas `#F8FAFC`; surface `#FFFFFF`; border `#E2E8F0`.
+- Status: healthy `#16A34A`; low stock `#D97706`; stockout `#DC2626`; expiry `#7C3AED`; unknown `#64748B`.
+- Inter/system sans for interface text; tabular numerals for quantities and dates. Use a restrained mono face only for SKUs and batch identifiers.
+- Page title 26px / 600; section title 16–18px / 600; body and table text 14px; supporting labels 12px; primary KPI values 26–30px.
+- Use a 4px spacing base, 12px panel radius, clear one-pixel borders, restrained or no shadows, and consistent 48–56px table rows.
+- Keep touch targets comfortable, controls visibly focused, text readable, and risk labels explicit rather than color-only.
 
-## App navigation
-1. /dashboard — KPIs, risks, recent activity
-2. /inventory — searchable, filterable product table, product detail drawer
-3. /movements — stock in/out recording and movement history
-4. /insights — risk cards, explanations, AI recommendations and optional Ask AI sheet
+## Shared application shell
 
-## Dashboard information hierarchy
-- Top: title and Record Movement CTA.
-- Four metric cards: total products, stockout risks, expiring soon, healthy items.
-- Urgent risk panel first; product details and recent movements after.
-- Skip large decorative charts for MVP.
+- Fixed/sticky desktop sidebar with distinct separation from page content; collapsed state keeps usable icons and branch selection, expanded labels remain comfortably sized. On small screens use an accessible off-canvas menu.
+- Sticky header contains the preserved global controls. Keep the EN/MM picker compact and flag-marked; notification count is populated on load; avatar menu includes Settings and Sign out.
+- Recently Viewed is user-specific and bounded to the latest 10 unique destinations.
+- Ask OceanBlue stays fixed across workspace pages. Collapsed state is a visible, high-contrast round chat bubble with a centered chat icon; hover/focus may expand its label.
 
-## Inventory design
-- Search by name and SKU; filter by stock/expiry risk; quantity and days remaining right aligned.
-- Example columns: Product, SKU, Available, Average Daily Out, Risk, Actions.
-- Show batch-level expiry; distinct lots may have different expiry dates.
-- Use text labels for Healthy, Low Stock, Stockout Risk, Expiry Risk, Unknown Data.
+## Page layouts
 
-## Stock movement design
-- Use a shadcn Sheet or Dialog.
-- Fields: movement type, product, quantity, batch, reason, and expiry for inbound food stock.
-- Prevent invalid or negative values and overdrawing stock.
-- Show post-save toast and updated stock; offer stock movement audit history.
+### Dashboard
 
-## AI insights
-- Problem → Evidence → Estimated risk time → Recommended action → Confidence / data quality.
-- Example: Chicken Sausage, 40 units, 18/day, about 2.2 days of supply.
-- Treat proposed reorder amounts as guidance, accounting for lead time, safety stock and incoming orders when data exists.
-- Prefer deterministic calculations for MVP stock risk; use LLM for clear explanations and questions grounded in actual inventory data. Never fabricate counts, dates, or prediction accuracy.
+- Header: page title/brief description and working Stock In/Out and Add Products actions.
+- Begin with a single compact KPI strip for products, units, low stock, expiry risk, and stockout risk. Values link to useful filtered destinations when appropriate.
+- Use a status distribution and prioritized action list as the main decision panels. Follow with an attention table and recent movements.
+- All displayed values come from the active Supabase branch. No fake chart values or dead date-range controls.
 
-## shadcn/ui mapping
-Sidebar: app shell; Card: KPIs; TanStack Table + Table: inventory; Badge: status; Sheet/Dialog: transactions and details; Field/Input/Select: forms; AlertDialog: destructive confirmation; Sonner: toasts; Skeleton: loading; Popover + Calendar: expiry.
-Documentation: https://ui.shadcn.com/
+### Inventory
 
-## Technical architecture
-Frontend: React or Next.js + TypeScript + Tailwind CSS + shadcn/ui.
-Backend: Supabase Auth + PostgreSQL (with row-level security); optional Rust/Axum API for scoped domain logic.
-Buildathon simplification: TypeScript client, Supabase database/auth, and only a thin Rust service if Rust is mandatory. Avoid routing a single transaction through multiple writers.
-Database MVP: products, product_batches, stock_movements, warehouse_members (if multi-user), ai_insights (optional cache).
-Stock movement should be an atomic database transaction or RPC, recording an immutable movement event and updating stock safely. Never use an unauthenticated browser write with a privileged Supabase key. Enforce warehouse-specific RLS.
-Historical demand estimates may be based on signed outbound movements. Without adequate data, label insights 'Insufficient history'.
+- KPI strip followed by a prominent, internally scrolling product table.
+- Include working risk tabs, instant search, searchable category/expiry filters, sort, CSV import/export, row selection, bulk actions, and a fixed pagination footer.
+- Product detail opens in a responsive drawer. Add/edit forms use persisted categories. Archive is confirmable and preserves audit history.
+- Batch expiry remains visible in details and expiry management; stock is not editable as a free-form product field.
 
-## MVP implementation order
-Day 1: app shell, inventory page, Supabase schema/auth, reliable stock in/out.
-Day 2: risk calculations, batch expiry alerts, AI insight explanations.
-Day 3: state polish, loading/error/empty states, responsive testing, narrative demo.
-Stretch-only: barcode scanning; full LLM chat; real-time collaborative updates.
+### Stock Movements
 
-## Quality and accessibility
-- Loading, empty, success, error, validation and permission states are designed.
-- Accessible labels, focus styles, AA contrast, non-color status labels, responsive layouts.
-- Use sample data clearly labeled as sample; never promise a prediction unsupported by input records.
-- Prioritize the warehouse manager's next action in under five seconds.
+- KPI strip and a searchable/filterable movement audit table with pinned controls, two-axis internal scrolling, and fixed row-count/page-size/pagination footer.
+- Stock In and Stock Out open a dialog. Validate product, batch, quantity, and inbound expiry; write through the atomic database RPC. Demo branches are editable test records when the signed-in role permits it.
+- On success, close/update the workflow and refresh quantities and risks. Report failures without losing form context.
 
-## Vibe-coding prompt
-Build OceanBlue AI, a responsive, light-mode, Ocean Blue B2B food warehouse inventory app. Use TypeScript/React, Tailwind, shadcn/ui, Inter, Supabase Auth/Postgres/RLS, and optional Rust/Axum for a narrow backend boundary. Follow tokens and four routes above. Build real data flows for stock in/out, batch expiry and risk estimation. Explain AI recommendations using verifiable current database values; no fabricated stock or dates. Use sidebar, KPI cards, searchable inventory table, transactional movement sheet, and actionable risk cards. Maintain consistent spacing, accessibility, keyboard navigation, optimistic updates only if safe, and complete loading/error/empty states. Avoid unnecessary features and decorative visual clutter.
+### Expiry Management
+
+- Show counts for active, urgent, expired, upcoming, and untracked batches. Search and filter by category/status; sort and export.
+- Include no-date batches as an explicit state. Nearest or expired batches sort first. Avoid unsupported valuation or advice.
+
+### AI Insights and Reports
+
+- Explain each risk with the measured stock, usage window, expiry evidence, confidence/data quality, and suggested action. Insufficient data stays unknown.
+- Reports use selected-branch product and movement records; label date windows and empty states. Do not show valuation where unit cost is absent.
+
+## Interaction and component rules
+
+- Reuse `PageHeading`, `KpiStrip`, `Panel`, `PanelHeader`, sortable `Th`, `TableFrame`, `SearchableSelect`, and shared status badges. Extend a shared component when the pattern truly repeats; remove abandoned variants.
+- Searchable dropdowns must be keyboard operable, searchable, and sized to the surrounding UI. Avoid oversized popovers for two-option language selection.
+- Table header/toolbars and pagination remain anchored while table content scrolls internally in both dimensions.
+- Buttons show pending, disabled, success, or error state as appropriate. No click-only rows without keyboard-accessible links/actions.
+- Responsive behavior should preserve content, controls, and navigation at narrow widths; do not hide the only route to a feature.
+
+## Data and AI integrity
+
+- Supabase is authoritative for persisted inventory. Clearly distinguish BreadTalk Demo branches from production branches.
+- A product's stock is the sum of its batch quantities. Each stock change is an immutable movement recorded transactionally.
+- Calculate risk deterministically before AI explanation. The LLM may summarize verified facts only, cannot fabricate quantities/dates, and cannot mutate stock.
+
+## Quality checks
+
+For frontend changes, verify typecheck, lint, build, loading/empty/error/success states, responsive layouts, keyboard interaction, and that visible controls perform their advertised action. For data changes, verify RLS/role enforcement and branch isolation; report any unavailable live verification.

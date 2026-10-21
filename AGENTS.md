@@ -1,56 +1,63 @@
 # OceanBlue — engineering guide
 
-## Product
+## Product scope
 
-OceanBlue is a light-first inventory decision tool for small food warehouses. Its operating loop is **Track → Predict → Alert → Recommend**. Help warehouse teams answer: what is in stock, what is at risk, what may happen next, and what action to consider.
+OceanBlue is a lightweight inventory decision tool for SME food warehouses. The operating loop is **Track → Predict → Alert → Recommend**. The core workflow is Dashboard → Inventory → Stock Movements → AI Insights. Keep work focused on inventory, batch expiry, stock movements, explainable risk, and warehouse operations; do not add ERP, accounting, supplier, delivery, or advanced forecasting features without explicit direction.
 
-The core workflow is Dashboard → Inventory → Stock Movements → AI Insights. Keep the product focused on those workflows; do not introduce ERP, accounting, supplier, delivery, or advanced forecasting scope without an explicit request.
+## Application architecture
 
-## Implementation rules
+- Next.js App Router, React, strict TypeScript, Tailwind CSS, and Lucide icons.
+- Supabase Auth and PostgreSQL are the source of truth. Browser code uses the publishable key and authenticated session only. The service-role key is server-only.
+- Server Components read scoped warehouse data; route handlers validate inputs, authenticate the caller, and enforce role requirements. Stock changes use the atomic `record_stock_movement` RPC.
+- Keep domain calculations and database access in `src/lib`; keep reusable presentation in `src/components`. Avoid duplicate UI primitives and unused code.
+- Use existing package versions and component patterns. Do not add a service, package, or abstraction unless it solves a demonstrated need.
 
-- Read this guide before making changes and honor explicit user requests when they differ.
-- Prefer the smallest complete solution and preserve existing behavior outside the requested change.
-- Use strict TypeScript, avoid `any`, validate API inputs, and separate domain/data operations from presentation.
-- Reuse the existing Tailwind and component patterns. Keep the interface operational, accessible, responsive, and light-mode-first; favor clear borders and spacing over decoration.
-- Include useful loading, empty, error, success, and validation states. Use semantic controls, associated labels, visible focus, and text labels for risk states.
-- Do not commit secrets, local environment files, `.DS_Store`, or generated build output.
+## Workspace and roles
 
-## Stack and boundaries
+Authenticated routes: `/dashboard`, `/inventory`, `/movements`, `/expiry`, `/insights`, `/reports`, and `/settings`. Preserve the shared shell: global live search (`Ctrl/Cmd+K`), Recently Viewed, collapsible responsive sidebar, language picker, notifications, branch picker, avatar menu, settings, and floating Ask OceanBlue assistant.
 
-- Next.js App Router, React, TypeScript, Tailwind CSS, Lucide icons.
-- Supabase Auth and PostgreSQL are the source of truth. Use Row Level Security for warehouse data and atomic RPCs for stock movements.
-- Server-only admin routes may use `SUPABASE_SERVICE_ROLE_KEY`; never import the admin client into browser components or expose this key to clients.
-- AI explains calculated/database facts only. It is read-only, may not invent stock quantities, and must not mutate inventory. Label forecasts as estimates and say when history is insufficient.
+- **System Admin** — full access to every active branch; manage users, categories, and branches.
+- **Editor** — create/edit/archive products and record movements in assigned branches.
+- **Viewer** — read-only access in assigned branches.
 
-## Navigation and roles
+Accounts are provisioned by System Admin invitation only. Profiles include a display name and unique username; login accepts username or email. Never add public sign-up.
 
-The authenticated workspace has four primary destinations: Dashboard (`/dashboard`), Inventory (`/inventory`), Movements (`/movements`), and AI Insights (`/insights`). Ask OceanBlue is a floating, read-only assistant available throughout the workspace.
+## Data integrity and access
 
-The three roles are:
+- Product availability is derived from batches. Expiry belongs to batches.
+- All stock changes are auditable movements. Never set product quantity directly.
+- Validate positive quantity, product/warehouse ownership, batch ownership, available Stock Out quantity, and expiry for new inbound food batches.
+- Enforce warehouse-specific RLS. System Admin access is global but must also work when changing the active branch; UI visibility is not authorization.
+- Branch removal is archival. Never delete production inventory or movement history as part of a demo reset.
+- BreadTalk training records live in clearly labeled Supabase demo branches. They are real, editable database records for testing, not production catalog data. Seed only empty/new demo branches. A reset may target only the three exact manifest-backed BreadTalk Demo branches and must leave all other branches/catalogs untouched.
 
-- **System Admin** — manage users, product categories, and branches; full workspace access.
-- **Editor** — manage products and record stock movements in assigned branches.
-- **Viewer** — read-only access to assigned branch inventory and history.
+## Risk and AI rules
 
-Accounts are provisioned by System Admin invitation only. A user profile has a display name and unique username; sign-in accepts username or email. Users may edit their own display name, username, and password. Never add public account creation.
+- Calculate stock risk deterministically from batch quantities, expiry, and recent Stock Out history before involving an LLM.
+- Centralize thresholds in the risk domain module. When usage history is insufficient, show unknown rather than fabricated days-of-supply.
+- Ask OceanBlue is read-only. Ground answers in current branch data, explain evidence and uncertainty, and never invent inventory values or execute stock changes.
 
-Settings are separated into Profile & password, User access (System Admin only), and Configuration (System Admin only). Product categories are persisted shared options. Branches are warehouses; removal archives a branch and retains inventory and movement history.
+## UI and accessibility
 
-## Inventory and risk integrity
+- Keep the workspace light, minimal, responsive, and consistent with the inventory-manager reference UI. Reuse shared KPI, panel, table, field, status, and modal patterns.
+- Tables must scroll internally on both axes, keep their controls/footer/pagination in place, and support useful empty/error states. Searchable selects are the default for catalog/filter selectors.
+- Use semantic controls, associated labels, keyboard focus states, text as well as color for risk, and loading/success/error/validation states.
+- Preserve the OceanBlue shared header controls and floating assistant when changing page layouts.
 
-- A product's available stock is derived from its batches. Expiry is batch-level.
-- Every stock change is an auditable movement; do not directly set product quantity.
-- Validate positive quantity, batch/product ownership, available quantity for Stock Out, and expiry details for inbound food batches.
-- Keep thresholds centralized in the risk domain module. Current MVP estimates use recent Stock Out history; insufficient history must remain unknown rather than display fabricated days-of-supply.
-- Product categories must be selected from the persisted category catalog. Category rename updates existing product assignments; deletion is blocked while products still use that category.
-- Branch removal is archival, not destructive deletion.
+## Performance
 
-## Data and security
+- Avoid loading multi-year stock history on routes that need only current risk and recent activity. Fetch full history only on the movement history screen, with bounded/paginated database reads.
+- Reuse request-scoped server context and avoid duplicate queries. Debounce live search, cancel stale requests, and do not compute dashboard indicators from static fixtures in production.
+- Keep charts/KPIs derived from the selected branch's Supabase data. Do not introduce large client dependencies for simple tables or charts.
 
-Apply Supabase migrations in filename order. RLS is mandatory for warehouse data. API routes must validate the authenticated user and required role; do not trust client-side role visibility as authorization. Keep the service-role key in server environment configuration only. Do not hardcode, print, or commit credentials.
+## Secrets and migrations
 
-BreadTalk demo records are seeded demo data and must not be confused with a production catalog. Avoid seeding demo data into a warehouse that already contains products.
+- Never print, hardcode, or commit credentials, `.env.local`, service-role keys, or generated build output. `.env.example` contains placeholders only.
+- Apply migrations in filename order. Any data-reset migration/function must be narrowly scoped, manifest-checked, admin-only, transactional, and must preserve non-demo data.
+- RLS is mandatory for warehouse records. Never trust client-side role checks as the sole authorization layer.
 
-## Verification
+## Verification and delivery
 
-Before delivery, run the checks available in `package.json` (at minimum `npm run typecheck` and `npm run lint`), inspect `git diff --check`, and manually verify changed flows when credentials and the local app are available. Report any live Supabase or browser behavior that could not be verified.
+- Run `npm run typecheck`, `npm run lint`, `git diff --check`, and `npm run build` for material changes.
+- Manually exercise touched flows when the authenticated app is available; report anything that could not be verified live.
+- Do not start a localhost server unless explicitly requested. Push completed changes to the configured GitHub remote when the user has requested continuous Vercel deployment.

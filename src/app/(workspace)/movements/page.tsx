@@ -4,7 +4,7 @@ import { getWarehouseContext } from "@/lib/warehouse";
 import { getLocale } from "@/lib/locale-server";
 
 export default async function MovementsPage() {
-  const [data, context, locale] = await Promise.all([getDashboardData(), getWarehouseContext(), getLocale()]);
+  const [data, context, locale] = await Promise.all([getDashboardData({ includeFullMovementHistory: true }), getWarehouseContext(), getLocale()]);
   const canEdit = context.userRole === "system_admin" || context.userRole === "editor";
   return <MovementsWorkspace data={data} canEdit={canEdit} locale={locale} />;
 }

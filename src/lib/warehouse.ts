@@ -1,10 +1,11 @@
 import { cookies } from "next/headers";
+import { cache } from "react";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { WarehouseOption } from "@/lib/types";
 
 const ACTIVE_WAREHOUSE_COOKIE = "oceanblue_active_warehouse";
 
-export async function getWarehouseContext(): Promise<{ warehouseId?: string; warehouses: WarehouseOption[]; userId?: string; userRole?: "system_admin" | "editor" | "viewer" }> {
+export const getWarehouseContext = cache(async (): Promise<{ warehouseId?: string; warehouses: WarehouseOption[]; userId?: string; userRole?: "system_admin" | "editor" | "viewer" }> => {
   const supabase = await createSupabaseServerClient();
   const { data: auth } = await supabase.auth.getUser();
   if (!auth.user) return { warehouses: [] };
@@ -25,6 +26,6 @@ export async function getWarehouseContext(): Promise<{ warehouseId?: string; war
   const warehouseId = warehouses.some((warehouse) => warehouse.id === requestedId) ? requestedId : warehouses[0]?.id;
   const role = admin ? "system_admin" : memberships.find((membership) => membership.warehouse_id === warehouseId)?.role;
   return { warehouseId, warehouses, userId: auth.user.id, userRole: role === "manager" ? "editor" : role === "system_admin" || role === "editor" || role === "viewer" ? role : undefined };
-}
+});
 
 export { ACTIVE_WAREHOUSE_COOKIE };
