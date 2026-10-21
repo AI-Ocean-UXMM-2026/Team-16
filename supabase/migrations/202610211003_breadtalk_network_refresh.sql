@@ -4,6 +4,8 @@ create or replace function public.reset_breadtalk_network()
 returns jsonb language plpgsql security definer set search_path = public as $$
 declare
   tracked_count integer;
+  legacy_count integer;
+  expanded_count integer;
   seeded jsonb;
   base record;
   source_id uuid;
@@ -26,15 +28,22 @@ begin
   if auth.uid() is null then raise exception 'Authentication is required'; end if;
   if not public.is_system_admin() then raise exception 'Only a System Admin can rebuild BreadTalk history'; end if;
 
-  select count(*) into tracked_count
+  select count(*) into legacy_count
   from public.demo_seed_runs r join public.warehouses w on w.id = r.warehouse_id
   where w.name in ('BreadTalk Demo — Central Kitchen','BreadTalk Demo — Junction 8','BreadTalk Demo — Airport Hub');
-  if tracked_count <> 3 then
-    raise exception 'Expected the three verified manifest-tracked BreadTalk branches; found %', tracked_count;
+  select count(*) into expanded_count
+  from public.demo_seed_runs r join public.warehouses w on w.id = r.warehouse_id
+  where w.name = any(branch_names);
+  if not ((legacy_count = 3 and expanded_count = 0) or (legacy_count = 0 and expanded_count = 9)) then
+    raise exception 'Expected either the three original or nine expanded manifest-tracked BreadTalk branches; found % original and % expanded', legacy_count, expanded_count;
+  end if;
+  select count(*) into tracked_count from public.demo_seed_runs;
+  if tracked_count <> legacy_count + expanded_count then
+    raise exception 'Unexpected manifest rows exist outside the verified BreadTalk branches; no warehouse data was changed';
   end if;
   if exists (
     select 1 from public.warehouses w
-    where w.name in ('BreadTalk Demo — Central Kitchen','BreadTalk Demo — Junction 8','BreadTalk Demo — Airport Hub')
+    where (w.name = any(branch_names) or w.name in ('BreadTalk Demo — Central Kitchen','BreadTalk Demo — Junction 8','BreadTalk Demo — Airport Hub'))
       and not exists (select 1 from public.demo_seed_runs r where r.warehouse_id = w.id)
   ) then
     raise exception 'An untracked BreadTalk branch exists; no warehouse data was changed';
@@ -76,16 +85,6 @@ begin
       else 3 end;
     update public.warehouses set name = branch_names[branch_index] where id = base.id;
   end loop;
-
-  -- Keep existing Editor and Viewer assignments for the three original branch names.
-  insert into public.warehouse_members(warehouse_id,user_id,role)
-  select w.id,snapshot.user_id,snapshot.role
-  from pg_temp.oceanblue_seed_member_snapshot snapshot
-  join public.warehouses w on w.name = case snapshot.old_name
-    when 'BreadTalk Demo — Central Kitchen' then 'BreadTalk Central Kitchen'
-    when 'BreadTalk Demo — Junction 8' then 'BreadTalk Junction 8'
-    else 'BreadTalk Airport Hub' end
-  on conflict (warehouse_id,user_id) do update set role = excluded.role;
 
   create temporary table oceanblue_seed_product_map(old_id uuid primary key, new_id uuid not null) on commit drop;
   create temporary table oceanblue_seed_batch_map(old_id uuid primary key, new_id uuid not null) on commit drop;
@@ -133,6 +132,18 @@ begin
     insert into public.demo_seed_runs(warehouse_id,seeded_by,history_start,products_created,batches_created,movements_created)
     select target_id,auth.uid(),min(history_start),product_count,batch_count,movement_count from public.demo_seed_runs where warehouse_id = source_id;
   end loop;
+
+  -- Preserve branch-scoped Editor and Viewer access, including assignments made
+  -- after the network was expanded. Global System Admin access remains global.
+  insert into public.warehouse_members(warehouse_id,user_id,role)
+  select w.id,snapshot.user_id,snapshot.role
+  from pg_temp.oceanblue_seed_member_snapshot snapshot
+  join public.warehouses w on w.name = case snapshot.old_name
+    when 'BreadTalk Demo — Central Kitchen' then 'BreadTalk Central Kitchen'
+    when 'BreadTalk Demo — Junction 8' then 'BreadTalk Junction 8'
+    when 'BreadTalk Demo — Airport Hub' then 'BreadTalk Airport Hub'
+    else snapshot.old_name end
+  on conflict (warehouse_id,user_id) do update set role = excluded.role;
 
   select count(*) into tracked_count from public.demo_seed_runs r
     join public.warehouses w on w.id = r.warehouse_id where w.name = any(branch_names);
