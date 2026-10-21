@@ -21,7 +21,7 @@ declare
   branch record;
   product_id uuid;
   batch_id uuid;
-  warehouse_id uuid;
+  target_warehouse_id uuid;
   month_start date;
   history_start date := date_trunc('month', current_date - interval '59 months')::date;
   month_index integer;
@@ -61,7 +61,7 @@ begin
     ('BreadTalk Demo — Junction 8'),
     ('BreadTalk Demo — Airport Hub')
   ) as branches(name) loop
-    insert into public.warehouses(name) values (branch.name) returning id into warehouse_id;
+    insert into public.warehouses(name) values (branch.name) returning id into target_warehouse_id;
     product_index := 0;
 
     for item in select * from (values
@@ -108,7 +108,7 @@ begin
     ) as catalog(name, category, demand, stock_factor, shelf_days) loop
       product_index := product_index + 1;
       insert into public.products(warehouse_id, name, sku, category, created_at)
-        values (warehouse_id, item.name, 'BT-HIST-' || lpad(product_index::text, 3, '0'), item.category, history_start::timestamptz)
+        values (target_warehouse_id, item.name, 'BT-HIST-' || lpad(product_index::text, 3, '0'), item.category, history_start::timestamptz)
         returning id into product_id;
       insert into public.product_categories(name) values (item.category) on conflict do nothing;
       products_count := products_count + 1;
@@ -131,8 +131,8 @@ begin
         if month_start < date_trunc('month', current_date)::date then
           insert into public.stock_movements(warehouse_id, product_id, batch_id, movement_type, quantity, reason, created_by, created_at)
             values
-              (warehouse_id, product_id, batch_id, 'in', monthly_demand, 'Scheduled bakery production', auth.uid(), month_start::timestamptz + interval '2 days 8 hours'),
-              (warehouse_id, product_id, batch_id, 'out', monthly_demand, case when month_index % 3 = 0 then 'Retail and cafe sales' else 'Store replenishment and sales' end, auth.uid(), month_start::timestamptz + interval '6 days 14 hours');
+              (target_warehouse_id, product_id, batch_id, 'in', monthly_demand, 'Scheduled bakery production', auth.uid(), month_start::timestamptz + interval '2 days 8 hours'),
+              (target_warehouse_id, product_id, batch_id, 'out', monthly_demand, case when month_index % 3 = 0 then 'Retail and cafe sales' else 'Store replenishment and sales' end, auth.uid(), month_start::timestamptz + interval '6 days 14 hours');
           movements_count := movements_count + 2;
         else
           on_hand := greatest(1, round(item.demand * item.stock_factor));
@@ -143,11 +143,11 @@ begin
           monthly_out := out_1 + out_2 + out_3 + out_4;
           inbound_total := on_hand + monthly_out;
           insert into public.stock_movements(warehouse_id, product_id, batch_id, movement_type, quantity, reason, created_by, created_at)
-            values (warehouse_id, product_id, batch_id, 'in', inbound_total, 'Current month production receipt', auth.uid(), (current_date - 30)::timestamptz + interval '8 hours'),
-              (warehouse_id, product_id, batch_id, 'out', out_1, 'Morning retail sales', auth.uid(), (current_date - 28)::timestamptz + interval '10 hours'),
-              (warehouse_id, product_id, batch_id, 'out', out_2, 'Cafe and wholesale dispatch', auth.uid(), (current_date - 21)::timestamptz + interval '11 hours'),
-              (warehouse_id, product_id, batch_id, 'out', out_3, 'Afternoon retail sales', auth.uid(), (current_date - 14)::timestamptz + interval '15 hours'),
-              (warehouse_id, product_id, batch_id, 'out', out_4, 'Morning retail sales', auth.uid(), (current_date - 7)::timestamptz + interval '10 hours');
+            values (target_warehouse_id, product_id, batch_id, 'in', inbound_total, 'Current month production receipt', auth.uid(), (current_date - 30)::timestamptz + interval '8 hours'),
+              (target_warehouse_id, product_id, batch_id, 'out', out_1, 'Morning retail sales', auth.uid(), (current_date - 28)::timestamptz + interval '10 hours'),
+              (target_warehouse_id, product_id, batch_id, 'out', out_2, 'Cafe and wholesale dispatch', auth.uid(), (current_date - 21)::timestamptz + interval '11 hours'),
+              (target_warehouse_id, product_id, batch_id, 'out', out_3, 'Afternoon retail sales', auth.uid(), (current_date - 14)::timestamptz + interval '15 hours'),
+              (target_warehouse_id, product_id, batch_id, 'out', out_4, 'Morning retail sales', auth.uid(), (current_date - 7)::timestamptz + interval '10 hours');
           movements_count := movements_count + 5;
         end if;
         month_index := month_index + 1;
@@ -155,7 +155,7 @@ begin
     end loop;
 
     insert into public.demo_seed_runs(warehouse_id, seeded_by, history_start, products_created, batches_created, movements_created)
-      values (warehouse_id, auth.uid(), history_start, product_index, product_index * month_index, product_index * (month_index - 1) * 2 + product_index * 5);
+      values (target_warehouse_id, auth.uid(), history_start, product_index, product_index * month_index, product_index * (month_index - 1) * 2 + product_index * 5);
     seeded_branches := seeded_branches + 1;
   end loop;
 
