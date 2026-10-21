@@ -25,9 +25,9 @@ Set the Supabase Auth Site URL and Redirect URLs for local and production `/auth
 
 ## Database
 
-Apply all SQL files in `supabase/migrations/` in filename order. The latest forward migration adds the Yangon network loader, constrains movement creation to whole-unit quantities, and disables superseded seed entry points. Seed data is not created automatically. After the migration is applied, a System Admin can run “Reset & load Yangon inventory” from Settings → Configuration.
+Apply all SQL files in `supabase/migrations/` in filename order. Migration `202610221001_yangon_seed_timeout_fix.sql` replaces the single long-running seed request with resumable, one-branch-at-a-time operations, constrains movement creation to whole-unit quantities, and disables superseded seed entry points. Seed data is not created automatically. After applying the migration, a System Admin can run “Reset & load Yangon inventory” from Settings → Configuration. If an earlier attempt timed out, run the action again to resume or reload the tracked network.
 
-The reset transaction removes only warehouse IDs recorded in the private seed manifest and verifies the expected legacy network before replacement. Untracked warehouses, catalogs, and stock history are preserved. The loader creates 9 branches, 360 products, 25,200 batches, and 51,480 movement records for 2021 through the current month (counts vary with the current month). Quantities are integers; expired batches remain in history while current stock is reconciled.
+The reset removes only warehouse IDs recorded in the private seed manifest and verifies the expected legacy network before replacement. Each branch reset or load commits independently, so an interrupted request can resume without restarting completed branches. Untracked warehouses, catalogs, and stock history are preserved. The loader creates 9 branches, 360 products, 25,200 batches, and 51,480 movement records for 2021 through the current month (counts vary with the current month). Quantities are integers; expired batches remain in history while current stock is reconciled.
 
 ## Quality checks
 
