@@ -54,10 +54,19 @@ async function readMovements(supabase: Awaited<ReturnType<typeof createSupabaseS
   const rows = (first.data ?? []) as DbMovement[];
   if (!fullHistory || (first.count ?? rows.length) <= rows.length) return rows;
   const pageCount = Math.ceil((first.count ?? rows.length) / MOVEMENT_PAGE_SIZE);
-  const remaining = await Promise.all(Array.from({ length: pageCount - 1 }, (_, page) => queryPage((page + 1) * MOVEMENT_PAGE_SIZE, (page + 2) * MOVEMENT_PAGE_SIZE - 1)));
-  for (const result of remaining) {
-    if (result.error) throw result.error;
-    rows.push(...(result.data ?? []) as DbMovement[]);
+  // Keep the history screen responsive even when a large branch is selected.
+  // Supabase/PostgREST can time out when dozens of page requests are started at once.
+  const maxConcurrentPages = 4;
+  for (let page = 1; page < pageCount; page += maxConcurrentPages) {
+    const pagesInBatch = Math.min(maxConcurrentPages, pageCount - page);
+    const results = await Promise.all(Array.from({ length: pagesInBatch }, (_, offset) => {
+      const currentPage = page + offset;
+      return queryPage(currentPage * MOVEMENT_PAGE_SIZE, (currentPage + 1) * MOVEMENT_PAGE_SIZE - 1);
+    }));
+    for (const result of results) {
+      if (result.error) throw result.error;
+      rows.push(...(result.data ?? []) as DbMovement[]);
+    }
   }
   return rows;
 }
