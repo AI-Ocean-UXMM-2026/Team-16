@@ -40,6 +40,12 @@ begin
     raise exception 'An untracked BreadTalk branch exists; no warehouse data was changed';
   end if;
 
+  create temporary table oceanblue_seed_member_snapshot on commit drop as
+  select w.name as old_name, wm.user_id, wm.role
+  from public.demo_seed_runs r
+  join public.warehouses w on w.id = r.warehouse_id
+  join public.warehouse_members wm on wm.warehouse_id = w.id;
+
   delete from public.warehouses w using public.demo_seed_runs r where r.warehouse_id = w.id;
   seeded := public.seed_breadtalk_history();
 
@@ -70,6 +76,16 @@ begin
       else 3 end;
     update public.warehouses set name = branch_names[branch_index] where id = base.id;
   end loop;
+
+  -- Keep existing Editor and Viewer assignments for the three original branch names.
+  insert into public.warehouse_members(warehouse_id,user_id,role)
+  select w.id,snapshot.user_id,snapshot.role
+  from pg_temp.oceanblue_seed_member_snapshot snapshot
+  join public.warehouses w on w.name = case snapshot.old_name
+    when 'BreadTalk Demo — Central Kitchen' then 'BreadTalk Central Kitchen'
+    when 'BreadTalk Demo — Junction 8' then 'BreadTalk Junction 8'
+    else 'BreadTalk Airport Hub' end
+  on conflict (warehouse_id,user_id) do update set role = excluded.role;
 
   create temporary table oceanblue_seed_product_map(old_id uuid primary key, new_id uuid not null) on commit drop;
   create temporary table oceanblue_seed_batch_map(old_id uuid primary key, new_id uuid not null) on commit drop;
