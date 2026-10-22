@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { deterministicAnswer, groundFacts, supportsDeterministicQuestion } from "@/lib/insights";
+import { casualAnswer, deterministicAnswer, groundFacts, supportsDeterministicQuestion } from "@/lib/insights";
 import { getDashboardData } from "@/lib/data";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getWarehouseContext } from "@/lib/warehouse";
@@ -15,6 +15,8 @@ export async function POST(request: Request) {
   const question = parsed.data.question;
   const locale = parsed.data.locale;
   const data = await getDashboardData();
+  const casual = casualAnswer(data, question, locale);
+  if (casual) return NextResponse.json({ answer: casual, source: "deterministic" });
   const asksStockIn = /stock\s*in|inbound|units?\s+received|received\s+stock/i.test(question);
   const asksStockOut = /stock\s*out|outbound|units?\s+issued|issued\s+stock/i.test(question);
   const asksMovementCount = /\b(count|number|how many|total.*(?:movements?|transactions?|entries|times?))\b/i.test(question) && !/\b(units?|quantity|amount)\b/i.test(question);

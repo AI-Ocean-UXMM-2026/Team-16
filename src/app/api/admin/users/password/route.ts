@@ -15,8 +15,11 @@ export async function PATCH(request: Request) {
   if (roleError || !adminRole) return NextResponse.json({ error: "Only a System Admin can reset another user's password." }, { status: 403 });
   try {
     const admin = createSupabaseAdminClient();
-    const { error } = await admin.auth.admin.updateUserById(parsed.data.userId, { password: parsed.data.password });
+    const { data: target, error: lookupError } = await admin.auth.admin.getUserById(parsed.data.userId);
+    if (lookupError || !target.user) return NextResponse.json({ error: "The selected user account could not be found." }, { status: 404 });
+    const { data: updated, error } = await admin.auth.admin.updateUserById(parsed.data.userId, { password: parsed.data.password, ban_duration: "none" });
     if (error) throw error;
+    if (!updated.user) throw new Error("Supabase did not return the updated account.");
     return NextResponse.json({ ok: true });
   } catch (error) {
     console.error("Admin password reset failed", error);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { CalendarDays, LoaderCircle } from "lucide-react";
 import type { Locale } from "@/lib/locale";
 
@@ -22,6 +22,16 @@ export function MovementDateRange({ locale, onChange }: { locale: Locale; onChan
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const root = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function closeOnOutsidePointer(event: PointerEvent) {
+      if (event.target instanceof Node && !root.current?.contains(event.target)) setOpen(false);
+    }
+    document.addEventListener("pointerdown", closeOnOutsidePointer);
+    return () => document.removeEventListener("pointerdown", closeOnOutsidePointer);
+  }, [open]);
 
   async function load(start: string, end: string) {
     if (start && start > end) { setError(my ? "စတင်ရက်ကို ပြီးဆုံးရက်မတိုင်မီ ရွေးပါ။" : "Start date must be on or before the end date."); return; }
@@ -44,7 +54,7 @@ export function MovementDateRange({ locale, onChange }: { locale: Locale; onChan
 
   const allTime = applied?.from === "";
   const label = !applied ? (my ? "ဖွင့်နေသည်…" : "Loading range…") : allTime ? (my ? "အချိန်အားလုံး" : "All time") : `${applied.from} to ${applied.to}`;
-  return <div className="relative">
+  return <div ref={root} className="relative">
     <button type="button" aria-expanded={open} onClick={() => setOpen((value) => !value)} className="page-action whitespace-nowrap"><CalendarDays className="h-4 w-4" strokeWidth={1.6} />{label}</button>
     {open && <form onSubmit={(event) => { event.preventDefault(); void load(from, to); }} className="absolute right-0 z-40 mt-2 w-[min(340px,calc(100vw-32px))] rounded-xl border border-slate-200 bg-white p-4 shadow-xl">
       <h2 className="text-sm font-semibold text-slate-800">{my ? "ရက်စွဲအပိုင်းအခြား" : "Date range"}</h2>

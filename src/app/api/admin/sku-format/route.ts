@@ -26,9 +26,10 @@ export async function GET() {
   }
 }
 
-const templateSchema = z.string().trim().min(3).max(80).regex(/^[A-Za-z0-9._{}-]+$/).refine((value) => {
+const templateSchema = z.string().trim().min(3).max(80).regex(/^[A-Za-z0-9._{}:-]+$/).refine((value) => {
   const tokens = value.match(/\{[^}]*\}/g) ?? [];
-  return tokens.length > 0 && tokens.every((token) => /^(\{DDDD\}|\{DD\}|\{MM\}|\{SEQ(?::(?:N|[1-9]|1[0-2]))?\})$/.test(token)) && tokens.some((token) => token.startsWith("{SEQ"));
+  const stripped = value.replace(/\{[^}]*\}/g, "");
+  return tokens.length > 0 && stripped.length + tokens.join("").length === value.length && /^[A-Za-z0-9._-]*$/.test(stripped) && tokens.every((token) => /^(\{DDDD\}|\{DD\}|\{MM\}|\{SEQ(?::(?:N|[1-9]|1[0-2]))?\})$/.test(token)) && tokens.some((token) => token.startsWith("{SEQ"));
 }, "Use {DDDD}, {DD}, {MM}, and a {SEQ} token. Optional sequence width is 1–12 or N.");
 
 export async function PUT(request: Request) {

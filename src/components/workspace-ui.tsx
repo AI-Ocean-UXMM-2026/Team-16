@@ -38,7 +38,7 @@ const kpiIconTone: Record<NonNullable<KpiItem["tone"]>, string> = {
 };
 
 export function KpiStrip({ items, size = "md" }: { items: KpiItem[]; size?: "md" | "lg" }) {
-  return <div className="mb-5 grid grid-cols-2 divide-x divide-y divide-slate-200 overflow-hidden rounded-xl border border-slate-200 bg-white sm:grid-cols-3 lg:grid-cols-5 lg:divide-y-0">
+  return <div className={cn("mb-5 grid grid-cols-2 divide-x divide-y divide-slate-200 overflow-hidden rounded-xl border border-slate-200 bg-white sm:grid-cols-3 lg:divide-y-0", items.length === 4 ? "lg:grid-cols-4" : "lg:grid-cols-5")}>
     {items.map((item) => {
       const Icon = item.icon;
       const inner = <span className="flex min-w-0 flex-col items-start">
