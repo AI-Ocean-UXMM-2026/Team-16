@@ -4,12 +4,12 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 const createSchema = z.object({ warehouseIds: z.array(z.string().uuid()).min(1).max(50), email: z.string().trim().email().max(254).transform((value) => value.toLowerCase()), username: z.string().trim().toLowerCase().regex(/^[a-z0-9_]{3,32}$/), fullName: z.string().trim().min(1).max(120), role: z.enum(["system_admin", "editor", "viewer"]) }).transform((input) => ({ ...input, warehouseIds: [...new Set(input.warehouseIds)] }));
-const roleSchema = z.object({ warehouseId: z.string().uuid(), userId: z.string().uuid(), role: z.enum(["system_admin", "editor", "viewer"]) });
 const workspaceAccessSchema = z.object({
   userId: z.string().uuid(),
   warehouseIds: z.array(z.string().uuid()).max(50),
   role: z.enum(["system_admin", "editor", "viewer"]),
 }).transform((input) => ({ ...input, warehouseIds: [...new Set(input.warehouseIds)] }));
+const updateSchema = z.object({ userId: z.string().uuid(), warehouseIds: z.array(z.string().uuid()).max(100), role: z.enum(["system_admin", "editor", "viewer"]) });
 
 async function requireAdmin() {
   const supabase = await createSupabaseServerClient(); const { data: auth } = await supabase.auth.getUser();
@@ -44,8 +44,10 @@ export async function GET() {
     }
     const ids = [...new Set([...(allProfiles ?? []).map((profile) => profile.id), ...adminIds])];
     const profileById = new Map((allProfiles ?? []).map((profile) => [profile.id, profile]));
-    const users = await Promise.all(ids.map(async (userId) => {
+    const userRows = await Promise.all(ids.map(async (userId) => {
       const { data: authUser } = await admin.auth.admin.getUserById(userId);
+      // Keep profile and movement audit history, but hide accounts removed by an administrator.
+      if (!authUser.user || authUser.user.banned_until) return null;
       const profile = profileById.get(userId);
       const userMemberships = memberships.get(userId) ?? [];
       const roles = new Set(userMemberships.map((membership) => membership.role));
@@ -53,13 +55,14 @@ export async function GET() {
         userId,
         fullName: profile?.full_name ?? "",
         username: profile?.username ?? "",
-        email: authUser.user?.email ?? "",
+        email: authUser.user.email ?? "",
         role: adminIds.has(userId) ? "system_admin" : userMemberships.length && roles.size === 1 ? userMemberships[0].role : userMemberships.length ? "editor" : "viewer",
         isGlobalAdmin: adminIds.has(userId),
         hasBranchMembership: userMemberships.length > 0,
         warehouseIds: adminIds.has(userId) ? [...warehouseIds] : userMemberships.map((membership) => membership.warehouseId),
       };
     }));
+    const users = userRows.filter((user) => user !== null);
     return NextResponse.json({ users, warehouses: warehouses ?? [] });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Users could not be loaded." }, { status: 500 });
