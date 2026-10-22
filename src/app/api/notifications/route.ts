@@ -7,7 +7,6 @@ export async function GET(request: Request) {
   try {
     const start = performance.now();
 
-    
     const data = await getDashboardData({
       skipMovements: true,
     });

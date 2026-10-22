@@ -196,7 +196,6 @@ if (!userId) {
         // or available batches. Keep the normal workspace read bounded to stock on hand.
         .gt("product_batches.quantity", 0)
         .order("created_at", { ascending: false }),
-      
       options.skipMovements
       ? Promise.resolve([] as DbMovement[])
       : readMovements(supabase, warehouseId, options.movementLimit ?? RECENT_MOVEMENT_LIMIT),
