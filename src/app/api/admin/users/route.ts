@@ -5,6 +5,7 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 const createSchema = z.object({ warehouseId: z.string().uuid(), email: z.string().trim().email().max(254).transform((value) => value.toLowerCase()), username: z.string().trim().toLowerCase().regex(/^[a-z0-9_]{3,32}$/), fullName: z.string().trim().min(1).max(120), role: z.enum(["system_admin", "editor", "viewer"]) });
 const roleSchema = z.object({ warehouseId: z.string().uuid(), userId: z.string().uuid(), role: z.enum(["system_admin", "editor", "viewer"]) });
+const assignSchema = z.object({ warehouseId: z.string().uuid(), userId: z.string().uuid(), role: z.enum(["editor", "viewer"]) });
 
 async function requireAdmin() {
   const supabase = await createSupabaseServerClient(); const { data: auth } = await supabase.auth.getUser();
@@ -20,16 +21,18 @@ export async function GET(request: Request) {
   if (!warehouseId || !z.string().uuid().safeParse(warehouseId).success) return NextResponse.json({ error: "Choose a valid warehouse." }, { status: 400 });
   try {
     const admin = createSupabaseAdminClient();
-    const [{ data: members, error }, { data: admins, error: adminError }] = await Promise.all([
+    const [{ data: members, error }, { data: admins, error: adminError }, { data: allProfiles, error: allProfilesError }] = await Promise.all([
       admin.from("warehouse_members").select("user_id,role").eq("warehouse_id", warehouseId).order("created_at"),
       admin.from("system_admins").select("user_id"),
+      admin.from("profiles").select("id,full_name,username"),
     ]);
     if (error) throw error;
     if (adminError) throw adminError;
+    if (allProfilesError) throw allProfilesError;
     const adminIds = new Set((admins ?? []).map((item) => item.user_id));
     const memberIds = new Set((members ?? []).map((member) => member.user_id));
     const ids = [...new Set([...(members ?? []).map((member) => member.user_id), ...adminIds])];
-    if (!ids.length) return NextResponse.json({ users: [] });
+    if (!ids.length) return NextResponse.json({ users: [], availableUsers: [] });
     const { data: profiles, error: profileError } = await admin.from("profiles").select("id,full_name,username").in("id", ids);
     if (profileError) throw profileError; if (adminError) throw adminError;
     const profileById = new Map((profiles ?? []).map((profile) => [profile.id, profile]));
@@ -39,9 +42,33 @@ export async function GET(request: Request) {
       const profile = profileById.get(userId);
       return { userId, fullName: profile?.full_name ?? "", username: profile?.username ?? "", email: authUser.user?.email ?? "", role: adminIds.has(userId) ? "system_admin" : roleById.get(userId) ?? "viewer", isGlobalAdmin: adminIds.has(userId), hasBranchMembership: memberIds.has(userId) };
     }));
-    return NextResponse.json({ users });
+    const availableUsers = await Promise.all((allProfiles ?? []).filter((profile) => !memberIds.has(profile.id) && !adminIds.has(profile.id)).map(async (profile) => {
+      const { data: authUser } = await admin.auth.admin.getUserById(profile.id);
+      return { userId: profile.id, fullName: profile.full_name ?? "", username: profile.username ?? "", email: authUser.user?.email ?? "" };
+    }));
+    return NextResponse.json({ users, availableUsers });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Users could not be loaded." }, { status: 500 });
+  }
+}
+
+export async function PUT(request: Request) {
+  const parsed = assignSchema.safeParse(await request.json().catch(() => null));
+  if (!parsed.success) return NextResponse.json({ error: "Choose a valid user, warehouse, and role." }, { status: 400 });
+  const access = await requireAdmin(); if (access.error) return access.error;
+  try {
+    const admin = createSupabaseAdminClient();
+    const [{ data: warehouse }, { data: profile }] = await Promise.all([
+      admin.from("warehouses").select("id").eq("id", parsed.data.warehouseId).maybeSingle(),
+      admin.from("profiles").select("id").eq("id", parsed.data.userId).maybeSingle(),
+    ]);
+    if (!warehouse || !profile) return NextResponse.json({ error: "The selected user or branch could not be found." }, { status: 404 });
+    const { error } = await admin.from("warehouse_members").upsert({ warehouse_id: parsed.data.warehouseId, user_id: parsed.data.userId, role: parsed.data.role }, { onConflict: "warehouse_id,user_id" });
+    if (error) throw error;
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    console.error("Branch user assignment failed", error);
+    return NextResponse.json({ error: "This user could not be assigned to the selected branch. Please retry." }, { status: 500 });
   }
 }
 

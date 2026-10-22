@@ -5,7 +5,7 @@ import type { BatchRecord, DashboardData, InventoryProduct, MovementRecord, Move
 
 type DbBatch = { id: string; batch_number: string; quantity: number; expiry_date: string | null };
 type DbMovement = { id: string; movement_type: MovementType; quantity: number; reason: string | null; created_at: string; batch_id: string | null; product_id: string };
-type DbProduct = { id: string; name: string; sku: string; category: string; product_batches: DbBatch[] | null };
+type DbProduct = { id: string; name: string; sku: string; category: string; created_at: string; product_batches: DbBatch[] | null };
 type DbOutboundSummary = { product_id: string; movement_count: number; outbound_units: number };
 type DbDailySummary = { movement_day: string; movement_type: MovementType; unit_total: number; movement_count: number };
 const RECENT_MOVEMENT_LIMIT = 100;
@@ -24,6 +24,7 @@ function mapProduct(product: DbProduct, movements: DbMovement[], outboundSummary
   const batchNumbers = new Map(batches.map((batch) => [batch.id, batch.batch_number]));
   return {
     id: product.id,
+    createdAt: product.created_at,
     name: product.name,
     sku: product.sku,
     category: product.category,
@@ -190,7 +191,7 @@ if (!userId) {
     };
     const [productResult, movementRows, outboundResult, dailySummaryResult] = await Promise.all([
       supabase.from("products")
-        .select("id,name,sku,category,product_batches(id,batch_number,quantity,expiry_date)")
+        .select("id,name,sku,category,created_at,product_batches(id,batch_number,quantity,expiry_date)")
         .eq("warehouse_id", warehouseId).is("archived_at", null)
         // Zero-quantity historical batches do not affect live stock, expiry risk,
         // or available batches. Keep the normal workspace read bounded to stock on hand.

@@ -1,13 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowLeftRight, ArrowRight, PackagePlus, Boxes, Package, TriangleAlert, CalendarClock, TrendingDown } from "lucide-react";
+import { useState } from "react";
+import { ArrowRight, Boxes, Package, TriangleAlert, CalendarClock, TrendingDown } from "lucide-react";
 import { PageHeading, KpiStrip, Panel, PanelHeader, Th } from "@/components/workspace-ui";
 import { StatusBadge } from "@/components/status-badge";
 import { getPriorityProducts } from "@/lib/insights";
 import type { DashboardData, InventoryProduct, MovementRecord } from "@/lib/types";
 import type { Locale } from "@/lib/locale";
 import { formatDate, formatQuantity } from "@/lib/utils";
+import { MovementDateRange, type MovementRangeData } from "@/components/movement-date-range";
 
 function InventoryStatus({ products, locale }: { products: InventoryProduct[]; locale: Locale }) {
   const my = locale === "my";
@@ -56,6 +58,7 @@ function RecentMovements({ movements, locale }: { movements: MovementRecord[]; l
 }
 
 export function DashboardView({ data, locale = "en" }: { data: DashboardData; locale?: Locale }) {
+  const [range, setRange] = useState<MovementRangeData | null>(null);
   const my = locale === "my";
   const products = data.products;
   const low = products.filter((p) => p.risk === "low_stock").length;
@@ -66,7 +69,7 @@ export function DashboardView({ data, locale = "en" }: { data: DashboardData; lo
   const number = new Intl.NumberFormat(my ? "my-MM" : "en-US");
   const movements = (data.movementHistory ?? data.recentMovements).slice(0, 6);
   return <div className="page-wrap !gap-0">
-    <PageHeading title={my ? "ဒက်ရှ်ဘုတ်" : "Dashboard"} description={my ? "လက်ကျန်အခြေအနေနှင့် အရေးယူရန်လိုသည့် ကိစ္စများကို ကြည့်ပါ။" : "Today's warehouse position and the actions that need you."} actions={<><Link href="/movements" className="page-action"><ArrowLeftRight aria-hidden="true" className="h-4 w-4" strokeWidth={1.7} />{my ? "စတော့ဝင်/ထွက်" : "Stock In / Out"}</Link><Link href="/inventory?add=1" className="page-action-primary"><PackagePlus aria-hidden="true" className="h-4 w-4" strokeWidth={1.7} />{my ? "ကုန်ပစ္စည်းထည့်ရန်" : "Add Products"}</Link></>} />
+    <PageHeading title={my ? "ဒက်ရှ်ဘုတ်" : "Dashboard"} description={my ? "လက်ကျန်အခြေအနေနှင့် အရေးယူရန်လိုသည့် ကိစ္စများကို ကြည့်ပါ။" : "Today's warehouse position and the actions that need you."} actions={<MovementDateRange locale={locale} onChange={setRange} />} />
     {!data.dataAvailable && <p role="alert" className="mb-5 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">{data.errorMessage ?? (my ? "ဂိုဒေါင်ဒေတာကို ဖတ်၍မရပါ။" : "Warehouse data is unavailable.")}</p>}
     <KpiStrip size="lg" items={[
       { icon: Boxes, label: my ? "ကုန်ပစ္စည်းစုစုပေါင်း" : "Total products", value: number.format(products.length), hint: my ? "အသက်ဝင်သောမှတ်တမ်း" : "Active product records", href: "/inventory" },
@@ -75,6 +78,7 @@ export function DashboardView({ data, locale = "en" }: { data: DashboardData; lo
       { icon: CalendarClock, label: my ? "သက်တမ်းကုန်ရန်နီး" : "Expiring items", value: number.format(expiring), hint: my ? "သက်တမ်းကာလအတွင်း" : "Batches inside expiry window", tone: expiring ? "expiry" : "default", href: "/expiry" },
       { icon: TrendingDown, label: my ? "ကုန်ခန်းနိုင်ခြေ" : "Stockout risks", value: number.format(stockout), hint: my ? "လက်ကျန်ရက် နည်းနေသည်" : "Short days of cover", tone: stockout ? "danger" : "default", href: "/inventory?risk=stockout_risk" },
     ]} />
+    {range && <div className="-mt-2 mb-5 grid grid-cols-2 gap-3 rounded-xl border border-slate-200 bg-white p-4 sm:grid-cols-3"><div><p className="text-xs text-slate-500">{my ? "စတော့ဝင်ယူနစ်" : "Stock In units"}</p><p className="mt-1 text-lg font-semibold tabular-nums text-emerald-700">{number.format(range.rows.filter((row) => row.type === "in").reduce((sum, row) => sum + row.units, 0))}</p></div><div><p className="text-xs text-slate-500">{my ? "စတော့ထွက်ယူနစ်" : "Stock Out units"}</p><p className="mt-1 text-lg font-semibold tabular-nums text-blue-700">{number.format(range.rows.filter((row) => row.type === "out").reduce((sum, row) => sum + row.units, 0))}</p></div><div className="col-span-2 sm:col-span-1"><p className="text-xs text-slate-500">{my ? "လှုပ်ရှားမှုအကြိမ်ရေ" : "Movement entries in range"}</p><p className="mt-1 text-lg font-semibold tabular-nums text-slate-900">{number.format(range.rows.reduce((sum, row) => sum + row.count, 0))}</p></div></div>}
     <div className="grid gap-5 lg:grid-cols-3"><InventoryStatus products={products} locale={locale} /><PriorityActions data={data} locale={locale} /><AttentionTable data={data} locale={locale} /><RecentMovements movements={movements} locale={locale} /></div>
     {attention > 0 && <span className="sr-only">{number.format(attention)} {my ? "ကုန်ပစ္စည်း အာရုံစိုက်ရန်လိုသည်" : "items need attention"}</span>}
   </div>;
