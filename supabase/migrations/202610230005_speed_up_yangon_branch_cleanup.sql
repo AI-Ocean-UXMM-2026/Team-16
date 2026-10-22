@@ -1,7 +1,3 @@
--- Avoid scanning all stock history for every resumable cleanup chunk.
-create index if not exists stock_movements_warehouse_id_idx
-  on public.stock_movements (warehouse_id);
-
 -- Keep each deletion transaction small enough for hosted Postgres timeouts.
 create or replace function public.delete_yangon_training_branch_chunk(p_warehouse_id uuid)
 returns jsonb language plpgsql security definer set search_path = public as $$
