@@ -130,7 +130,7 @@ export async function DELETE(request: Request) {
   const parsed = removeSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "Choose a valid user account." }, { status: 400 });
   const access = await requireAdmin(); if (access.error) return access.error;
-  if (parsed.data.userId === access.userId) return NextResponse.json({ error: "You cannot remove your own account access." }, { status: 400 });
+  if (parsed.data.userId === access.userId) return NextResponse.json({ error: "You cannot remove your own System Admin account." }, { status: 400 });
   try {
     const admin = createSupabaseAdminClient();
     const { data: targetAdmin, error: targetError } = await admin.from("system_admins").select("user_id").eq("user_id", parsed.data.userId).maybeSingle();

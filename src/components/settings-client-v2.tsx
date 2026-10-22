@@ -17,7 +17,7 @@ type Branch = { id: string; name: string; created_at: string };
 type WorkspaceUser = { userId: string; fullName: string; username: string; email: string; role: AppRole; isGlobalAdmin?: boolean; hasBranchMembership?: boolean };
 const roleOptions = [{ value: "system_admin", label: "System Admin", detail: "Manage users, branches, and categories" }, { value: "editor", label: "Editor", detail: "Manage products and stock movements" }, { value: "viewer", label: "Viewer", detail: "Read-only inventory access" }];
 
-export function SettingsClient({ email, initialName, initialUsername, warehouses, activeWarehouseId, isAdmin, locale = "en" }: { email: string; initialName: string; initialUsername: string; warehouses: WarehouseOption[]; activeWarehouseId: string; isAdmin: boolean; locale?: Locale }) {
+export function SettingsClient({ userId, email, initialName, initialUsername, warehouses, activeWarehouseId, isAdmin, locale = "en" }: { userId: string; email: string; initialName: string; initialUsername: string; warehouses: WarehouseOption[]; activeWarehouseId: string; isAdmin: boolean; locale?: Locale }) {
   const my = locale === "my";
   const [tab, setTab] = useState<SettingsTab>("profile");
   const [name, setName] = useState(initialName); const [username, setUsername] = useState(initialUsername);
@@ -106,6 +106,7 @@ export function SettingsClient({ email, initialName, initialUsername, warehouses
     setPasswordTarget(users.find((user) => user.userId === userId) ?? null); setAdminPassword(""); setAdminPasswordConfirm(""); setNotice(null);
   }
   async function removeUser(user: WorkspaceUser) {
+    if (user.userId === userId) { setNotice({ kind: "error", message: "You cannot remove your own System Admin account." }); return; }
     if (!window.confirm(`Remove ${user.fullName || user.username} from StockSense? Sign-in will be disabled and audit history retained.`)) return;
     setRoleSaving(user.userId); setNotice(null);
     try { const response = await fetch("/api/admin/users", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ userId: user.userId }) }); const result = await response.json() as { error?: string; message?: string }; if (!response.ok) throw new Error(result.error ?? "User could not be removed."); setUsers((current) => current.filter((item) => item.userId !== user.userId)); setAvailableUsers((current) => current.filter((item) => item.userId !== user.userId)); setPasswordTarget(null); setNotice({ kind: "success", message: result.message ?? "User access removed." }); }
