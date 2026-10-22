@@ -3,7 +3,7 @@ import { z } from "zod";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
-const createSchema = z.object({ warehouseId: z.string().uuid(), email: z.string().trim().email().max(254).transform((value) => value.toLowerCase()), username: z.string().trim().toLowerCase().regex(/^[a-z0-9_]{3,32}$/), fullName: z.string().trim().min(1).max(120), role: z.enum(["system_admin", "editor", "viewer"]) });
+const createSchema = z.object({ warehouseIds: z.array(z.string().uuid()).min(1).max(50), email: z.string().trim().email().max(254).transform((value) => value.toLowerCase()), username: z.string().trim().toLowerCase().regex(/^[a-z0-9_]{3,32}$/), fullName: z.string().trim().min(1).max(120), role: z.enum(["system_admin", "editor", "viewer"]) }).transform((input) => ({ ...input, warehouseIds: [...new Set(input.warehouseIds)] }));
 const roleSchema = z.object({ warehouseId: z.string().uuid(), userId: z.string().uuid(), role: z.enum(["system_admin", "editor", "viewer"]) });
 const assignSchema = z.object({ warehouseId: z.string().uuid(), userId: z.string().uuid(), role: z.enum(["editor", "viewer"]) });
 
@@ -78,10 +78,10 @@ export async function POST(request: Request) {
   const access = await requireAdmin(); if (access.error) return access.error;
   try {
     const admin = createSupabaseAdminClient(); const input = parsed.data;
-    const [{ data: warehouse }, { data: username }] = await Promise.all([admin.from("warehouses").select("id").eq("id", input.warehouseId).maybeSingle(), admin.from("profiles").select("id").eq("username", input.username).maybeSingle()]);
-    if (!warehouse) return NextResponse.json({ error: "The selected warehouse could not be found." }, { status: 404 });
+    const [{ data: warehouseRows }, { data: username }] = await Promise.all([admin.from("warehouses").select("id").in("id", input.warehouseIds), admin.from("profiles").select("id").eq("username", input.username).maybeSingle()]);
+    if ((warehouseRows ?? []).length !== input.warehouseIds.length) return NextResponse.json({ error: "One or more selected branches could not be found." }, { status: 404 });
     if (username) return NextResponse.json({ error: "That username is already in use." }, { status: 409 });
-    const { data: provision, error: provisionError } = await admin.from("user_provisioning_tokens").insert({ email: input.email, username: input.username, full_name: input.fullName, warehouse_id: input.warehouseId, app_role: input.role, invited_by: access.userId }).select("token").single();
+    const { data: provision, error: provisionError } = await admin.from("user_provisioning_tokens").insert({ email: input.email, username: input.username, full_name: input.fullName, warehouse_id: input.warehouseIds[0], warehouse_ids: input.warehouseIds, app_role: input.role, invited_by: access.userId }).select("token").single();
     if (provisionError || !provision) return NextResponse.json({ error: provisionError?.message ?? "User invitation could not be prepared." }, { status: 400 });
     const origin = new URL(request.url).origin;
     const { error: inviteError } = await admin.auth.admin.inviteUserByEmail(input.email, { redirectTo: `${origin}/auth/callback?next=/dashboard`, data: { oceanblue_provisioning_token: provision.token } });
@@ -139,13 +139,15 @@ export async function DELETE(request: Request) {
       const { count, error } = await admin.from("system_admins").select("user_id", { count: "exact", head: true });
       if (error) throw error;
       if ((count ?? 0) <= 1) return NextResponse.json({ error: "At least one System Admin must remain." }, { status: 400 });
+    }
+    const { error: banError } = await admin.auth.admin.updateUserById(parsed.data.userId, { ban_duration: "876000h" });
+    if (banError) throw banError;
+    if (targetAdmin) {
       const { error: deleteError } = await admin.from("system_admins").delete().eq("user_id", parsed.data.userId);
       if (deleteError) throw deleteError;
     }
     const { error: membershipError } = await admin.from("warehouse_members").delete().eq("user_id", parsed.data.userId);
     if (membershipError) throw membershipError;
-    const { error: banError } = await admin.auth.admin.updateUserById(parsed.data.userId, { ban_duration: "876000h" });
-    if (banError) throw banError;
     return NextResponse.json({ ok: true, message: "User sign-in has been disabled and branch access removed. Audit records are retained." });
   } catch (error) {
     console.error("User removal failed", error);
