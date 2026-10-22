@@ -20,6 +20,7 @@ export interface MovementRecord {
 
 export interface InventoryProduct {
   id: string;
+  createdAt: string;
   name: string;
   sku: string;
   category: string;

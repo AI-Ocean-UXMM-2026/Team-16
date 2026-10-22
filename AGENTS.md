@@ -1,20 +1,21 @@
-# OceanBlue engineering guide
+# StockSense engineering guide
 
 ## Product
 
-OceanBlue is a light-first inventory decision workspace for small retail and food operators. Its loop is **Track → Predict → Alert → Recommend**. Focus on inventory, batches and expiry, auditable stock movements, explainable risk, reports, and warehouse operations. Do not add ERP, accounting, supplier, delivery, or advanced forecasting features without an explicit request.
+StockSense is an AI-powered inventory assistant for small retail and food operators. It helps teams track branch-level products, batch quantities, expiry dates, and auditable stock movements; detect stock and expiry risks from verified data; and turn those signals into understandable alerts, reports, and recommendations. Its operating loop is **Track → Predict → Alert → Recommend**.
 
-## Architecture and code
+Keep the product focused on inventory decisions and warehouse operations. Do not add ERP, accounting, supplier, delivery, or advanced forecasting features without an explicit request.
 
-- Next.js App Router, React, strict TypeScript, Tailwind CSS, Lucide, Supabase Auth/PostgreSQL.
-- Supabase is the source of truth. Keep service-role credentials server-only. Route handlers validate inputs, authenticate, and enforce roles; warehouse data is protected by RLS.
-- Stock mutations use the atomic `record_stock_movement` RPC. Never set product quantity directly.
-- Keep domain/data logic in `src/lib` or server route handlers, reusable presentation in `src/components`, and use existing dependencies and patterns.
-- Prefer the smallest complete change. Do not add packages or services without a concrete need.
+## Architecture and implementation
+
+- Next.js App Router, React, strict TypeScript, Tailwind CSS, Lucide, and Supabase Auth/PostgreSQL.
+- Supabase is the source of truth. Keep service-role credentials server-only. Route handlers validate inputs, authenticate callers, enforce roles, and rely on warehouse-scoped RLS.
+- Record all stock changes through the atomic `record_stock_movement` RPC. Never update product quantities directly.
+- Keep domain/data logic in `src/lib` or server route handlers, and reusable presentation in `src/components`. Prefer existing dependencies and patterns; add no packages/services without a concrete need.
 
 ## Workspace and roles
 
-Authenticated destinations are Dashboard, Inventory, Movements, Expiry, AI Insights, Reports, and Settings. Preserve global live search (Ctrl/Cmd+K), Recently Viewed, responsive/collapsible sidebar, language, notification count, branch picker, avatar menu, Settings, and floating Ask OceanBlue.
+Authenticated destinations are Dashboard, Inventory, Movements, Expiry, AI Insights, Reports, and Settings. Preserve the live global search (Ctrl/Cmd+K), Recently Viewed, responsive/collapsible sidebar, language, notification count, branch picker, avatar menu, Settings, and floating Ask StockSense assistant.
 
 - System Admin: all active branches and workspace configuration.
 - Editor: products and stock movements in assigned branches.
@@ -25,35 +26,34 @@ Accounts are provisioned by System Admin invitation only. Users can update their
 ## Inventory integrity and access
 
 - Available stock is derived from product batches; expiry is tracked per batch.
-- Stock In and Stock Out quantities must be positive whole numbers in the UI, API, and atomic RPC.
+- Stock In and Stock Out quantities are positive whole numbers in the UI, API, and atomic RPC.
 - Validate product/branch and batch ownership, sufficient Stock Out quantity, and inbound batch/expiry information.
 - Every stock change is an immutable movement recorded transactionally. Branch removal archives data.
-- Product categories come from the persisted category catalog. Category removal is blocked while products use it.
+- Product categories come from the persisted category catalog. Block category removal while products use it.
 - Enforce branch-scoped RLS. System Admin access is global and must work for all active branches; client-side role visibility is not authorization.
 
-## Yangon training network
+## Seed data
 
-The admin-triggered training network contains one main warehouse and eight convenience stores in Yangon, 200 retail product variants per branch, integer quantities, batch expiry, monthly reconciled history beginning January 2021, and one sale movement per product for each elapsed day of the current month. The network represents about 1,800 sale movements per day across nine branches at the current size. It is stored in Supabase and remains editable through normal workflows.
-
-Reset only rows linked to the private seed manifest. Reset functions must be admin-only, transactional, and reject any unrecognized manifest or untracked target branch. Seed in sequential 40-product chunks with persisted progress so a failed request can resume safely. Never delete or rewrite non-seed branches, catalogs, or their stock history. Do not auto-seed on application startup. Keep training data clearly separate from production catalogs in admin-only configuration UI.
+Seed and training data must be explicit, clearly identified in admin configuration, and never loaded automatically at startup. Destructive reset functions must be admin-only, transactional, and restricted to rows linked to a verified private seed manifest. Preserve non-seed branches, catalogs, and stock history. Chunk large operations and persist progress to make retries safe.
 
 ## Risk, AI, and interface
 
 - Calculate stock risk deterministically from current batches, expiry, and recent Stock Out history before asking an LLM to explain it. Insufficient history stays unknown.
-- Ask OceanBlue is read-only, grounded in verified branch facts, and cannot mutate stock. Keep a static bank of 100 neutral questions in both supported locales; rotate three questions per open without a network call. Clear the prompt input as soon as a question is submitted. Suggestions must be questions, not claims, and must not imply unsupported data.
+- Ask StockSense is read-only, grounded in verified branch facts, and cannot mutate stock. Keep the static bank of 100 neutral questions in both supported locales; rotate three per open without a network call. Clear the prompt input as soon as a question is submitted. Suggested prompts must be questions, not claims.
 - Keep the light, minimal, responsive interface consistent with `assets/OceanBlue_Design_Guide.md`. Use clear hierarchy, thin icon/text weights, compact searchable selects, and visible keyboard focus.
-- Every visible control must work. Tables scroll internally on both axes, with searchable row-count controls and pagination fixed outside the scrolling table body.
-- Include loading, empty, error, success, and validation states. Do not invent chart values or static data presented as live.
+- Every visible control must work. Tables grow with page content and do not have internal vertical scrolling. On narrow screens, tables may scroll horizontally in their own wrapper. Keep page-size controls and pagination outside table wrappers.
+- Include loading, empty, error, success, and validation states. Do not invent chart values or present static data as live.
+- Keep the floating chat launcher circular and compact. It remains operable on touch, but is visually subdued until hover or keyboard focus; it must not expand on hover.
 
 ## Performance and verification
 
-- Avoid fetching multi-year history outside the Movement History workflow. Use database aggregates for 90-day outbound risk and daily report trends; keep recent raw movement reads bounded on Dashboard, Inventory, Reports, and AI Insights.
-- Keep route loading feedback visible during navigation and branch changes. Favor low-latency static UI behavior over network calls for non-data interactions.
+- Avoid fetching multi-year history outside Movement History. Use database aggregates for 90-day outbound risk and daily report trends; keep raw movement reads bounded on Dashboard, Inventory, Reports, and AI Insights.
+- Keep route loading feedback visible during navigation and branch changes. Favor low-latency behavior for non-data interactions.
 - Before delivery run `npm run typecheck`, `npm run lint`, `npm run build`, and `git diff --check`.
-- Add or run focused tests for validation and domain logic where possible. Do not start a local web server unless requested. Clearly distinguish automated checks from live Supabase/Vercel or browser UAT.
+- Add or run focused tests for validation/domain logic where possible. Do not start a local web server unless requested. Distinguish automated checks from live Supabase/Vercel/browser UAT and measured performance.
 
 ## Secrets, migrations, and delivery
 
 - Apply migrations in filename order. Never print, hardcode, or commit credentials, `.env.local`, service-role keys, or build output. `.env.example` uses placeholders only.
-- Keep legacy migrations for database history; new behavior belongs in forward migrations. Revoke obsolete unsafe seed entry points when replacing them.
-- Stage only files belonging to the task. Preserve unrelated user changes. Push completed work when the user has requested continuous GitHub/Vercel deployment.
+- Keep legacy migrations for database history; implement new behavior in forward migrations. Revoke obsolete unsafe seed entry points when replacing them.
+- Stage only files belonging to the task. Preserve unrelated user changes. Push completed work when requested.

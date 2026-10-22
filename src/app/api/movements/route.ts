@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getPaginatedMovements } from "@/lib/data";
 
 const movementSchema = z.object({
   warehouseId: z.string().uuid(),
@@ -35,5 +36,50 @@ export async function POST(request: Request) {
     return NextResponse.json({ data });
   } catch {
     return NextResponse.json({ error: "The movement could not be saved. Please try again." }, { status: 500 });
+  }
+}
+
+export async function GET(request: Request) {
+  try {
+    const url = new URL(request.url);
+    const page = Number(url.searchParams.get("page") ?? 1);
+    const pageSize = Number(url.searchParams.get("pageSize") ?? 25);
+    const typeParam = url.searchParams.get("type") ?? "all";
+    const periodParam = url.searchParams.get("period") ?? "all";
+
+    if (
+      !Number.isSafeInteger(page) ||
+      page < 1 ||
+      !Number.isSafeInteger(pageSize) ||
+      pageSize < 1 ||
+      pageSize > 100 || !["all", "in", "out"].includes(typeParam) || !["all", "day", "week", "month"].includes(periodParam)
+    ) {
+      return NextResponse.json(
+        { error: "Invalid pagination parameters." },
+        { status: 400 }
+      );
+    }
+
+    const result = await getPaginatedMovements(page, pageSize, {
+      type: typeParam as "all" | "in" | "out",
+      period: periodParam as "all" | "day" | "week" | "month",
+      query: url.searchParams.get("q") ?? "",
+    });
+
+    return NextResponse.json(result);
+  } catch (error) {
+    console.error("Failed to fetch movements:", error);
+
+    if (error instanceof Error && error.message === "Unauthorized") {
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
+    return NextResponse.json(
+      { error: "Failed to load movements." },
+      { status: 500 }
+    );
   }
 }
