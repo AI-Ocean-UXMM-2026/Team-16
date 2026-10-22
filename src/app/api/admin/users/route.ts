@@ -123,3 +123,32 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Role could not be updated." }, { status: 500 });
   }
 }
+
+const removeSchema = z.object({ userId: z.string().uuid() });
+
+export async function DELETE(request: Request) {
+  const parsed = removeSchema.safeParse(await request.json().catch(() => null));
+  if (!parsed.success) return NextResponse.json({ error: "Choose a valid user account." }, { status: 400 });
+  const access = await requireAdmin(); if (access.error) return access.error;
+  if (parsed.data.userId === access.userId) return NextResponse.json({ error: "You cannot remove your own account access." }, { status: 400 });
+  try {
+    const admin = createSupabaseAdminClient();
+    const { data: targetAdmin, error: targetError } = await admin.from("system_admins").select("user_id").eq("user_id", parsed.data.userId).maybeSingle();
+    if (targetError) throw targetError;
+    if (targetAdmin) {
+      const { count, error } = await admin.from("system_admins").select("user_id", { count: "exact", head: true });
+      if (error) throw error;
+      if ((count ?? 0) <= 1) return NextResponse.json({ error: "At least one System Admin must remain." }, { status: 400 });
+      const { error: deleteError } = await admin.from("system_admins").delete().eq("user_id", parsed.data.userId);
+      if (deleteError) throw deleteError;
+    }
+    const { error: membershipError } = await admin.from("warehouse_members").delete().eq("user_id", parsed.data.userId);
+    if (membershipError) throw membershipError;
+    const { error: banError } = await admin.auth.admin.updateUserById(parsed.data.userId, { ban_duration: "876000h" });
+    if (banError) throw banError;
+    return NextResponse.json({ ok: true, message: "User sign-in has been disabled and branch access removed. Audit records are retained." });
+  } catch (error) {
+    console.error("User removal failed", error);
+    return NextResponse.json({ error: "User access could not be removed. Please retry." }, { status: 500 });
+  }
+}

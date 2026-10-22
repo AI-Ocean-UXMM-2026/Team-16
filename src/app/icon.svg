@@ -2,5 +2,4 @@
   <rect width="64" height="64" rx="16" fill="#0b63ce" />
   <path d="m14 23 18-9 18 9v25l-18 9-18-9V23Z" fill="none" stroke="#fff" stroke-linejoin="round" stroke-width="4" />
   <path d="m14 23 18 9 18-9M32 32v25M22 19l18 9" fill="none" stroke="#b9e6ff" stroke-linecap="round" stroke-linejoin="round" stroke-width="3.5" />
-  <path d="m27 41 4 4 8-9" fill="none" stroke="#fff" stroke-linecap="round" stroke-linejoin="round" stroke-width="3.5" />
 </svg>
