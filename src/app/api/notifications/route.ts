@@ -51,7 +51,10 @@ export async function GET(request: Request) {
   }
 }
 
-const readSchema = z.object({ notificationIds: z.array(z.string().min(1).max(240)).min(1).max(5000) });
+const readSchema = z.object({
+  notificationIds: z.array(z.string().min(1).max(240)).min(1).max(5000),
+  action: z.enum(["read", "unread"]).default("read"),
+});
 
 export async function POST(request: Request) {
   const parsed = readSchema.safeParse(await request.json().catch(() => null));
@@ -60,8 +63,11 @@ export async function POST(request: Request) {
     const supabase = await createSupabaseServerClient();
     const { data: auth } = await supabase.auth.getUser();
     if (!auth.user) return NextResponse.json({ error: "Sign in to update notifications." }, { status: 401 });
-    const rows = [...new Set(parsed.data.notificationIds)].map((notification_id) => ({ user_id: auth.user.id, notification_id }));
-    const { error } = await supabase.from("user_notification_reads").upsert(rows, { onConflict: "user_id,notification_id" });
+    const notificationIds = [...new Set(parsed.data.notificationIds)];
+    const update = supabase.from("user_notification_reads");
+    const { error } = parsed.data.action === "unread"
+      ? await update.delete().eq("user_id", auth.user.id).in("notification_id", notificationIds)
+      : await update.upsert(notificationIds.map((notification_id) => ({ user_id: auth.user.id, notification_id })), { onConflict: "user_id,notification_id" });
     if (error) {
       console.error("Notification read state update failed", error.message);
       return NextResponse.json({ error: "Notifications could not be updated. Please try again." }, { status: 503 });
