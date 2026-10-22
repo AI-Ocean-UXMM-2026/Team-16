@@ -24,13 +24,17 @@ export async function POST() {
 
     let chunks = 0;
     let done = true;
+    let phase: string | undefined;
     for (const warehouseId of warehouseIds as string[]) {
       let branchDone = false;
       while (!branchDone && chunks < CHUNKS_PER_REQUEST) {
         const { data, error } = await supabase.rpc("delete_yangon_training_branch_chunk", { p_warehouse_id: warehouseId });
         if (error) {
-          return NextResponse.json({ error: "The branch cleanup paused safely. Completed chunks are saved; retry to resume.", chunks }, { status: 400 });
+          console.error("Training branch cleanup chunk failed", { code: error.code, message: error.message, details: error.details, hint: error.hint });
+          return NextResponse.json({ error: `The branch cleanup paused during ${phase ?? "the current step"}. Completed chunks are saved; retry to resume safely.`, chunks }, { status: 400 });
         }
+        const resultPhase = (data as { phase?: unknown } | null)?.phase;
+        if (typeof resultPhase === "string") phase = resultPhase;
         branchDone = (data as { done?: unknown } | null)?.done === true;
         chunks += 1;
       }
