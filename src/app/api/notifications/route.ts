@@ -5,7 +5,18 @@ import { daysUntilDate } from "@/lib/utils";
 
 export async function GET(request: Request) {
   try {
-    const data = await getDashboardData();
+    const start = performance.now();
+
+    
+    const data = await getDashboardData({
+      skipMovements: true,
+    });
+
+    console.log(
+      `[Notifications] getDashboardData took ${(
+        performance.now() - start
+      ).toFixed(0)}ms`
+    );
     const locale = new URL(request.url).searchParams.get("locale") === "my" ? "my" : "en";
     if (!data.signedIn) return NextResponse.json({ error: "Sign in to view warehouse notifications." }, { status: 401 });
     if (!data.dataAvailable) return NextResponse.json({ error: data.errorMessage ?? "Warehouse notifications are unavailable." }, { status: 503 });

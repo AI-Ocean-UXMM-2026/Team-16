@@ -8,7 +8,7 @@ type DbMovement = { id: string; movement_type: MovementType; quantity: number; r
 type DbProduct = { id: string; name: string; sku: string; category: string; product_batches: DbBatch[] | null };
 type DbOutboundSummary = { product_id: string; movement_count: number; outbound_units: number };
 type DbDailySummary = { movement_day: string; movement_type: MovementType; unit_total: number; movement_count: number };
-const MOVEMENT_PAGE_SIZE = 1_000;
+const RECENT_MOVEMENT_LIMIT = 100;
 
 function movementFor(productName: string, movement: DbMovement, batchNumbers: Map<string, string>): MovementRecord {
   return { id: movement.id, productName, batchNumber: movement.batch_id ? batchNumbers.get(movement.batch_id) ?? null : null, type: movement.movement_type, quantity: Number(movement.quantity), reason: movement.reason, createdAt: movement.created_at };
@@ -37,46 +37,151 @@ function mapProduct(product: DbProduct, movements: DbMovement[], outboundSummary
   };
 }
 
-async function readMovements(supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>, warehouseId: string, fullHistory: boolean): Promise<DbMovement[]> {
+async function readMovements(supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>, warehouseId: string, limit: number): Promise<DbMovement[]> {
   const fields = "id,movement_type,quantity,reason,created_at,batch_id,product_id";
-  const queryPage = (from: number, to: number) => {
-    let query = supabase.from("stock_movements").select(fields, fullHistory ? { count: "exact" } : undefined)
-      .eq("warehouse_id", warehouseId).order("created_at", { ascending: false }).range(from, to);
-    if (!fullHistory) {
-      const cutoff = new Date();
-      cutoff.setDate(cutoff.getDate() - RISK_RULES.lookbackDays);
-      query = query.gte("created_at", cutoff.toISOString());
-    }
-    return query;
-  };
-  const first = await queryPage(0, MOVEMENT_PAGE_SIZE - 1);
-  if (first.error) throw first.error;
-  const rows = (first.data ?? []) as DbMovement[];
-  if (!fullHistory || (first.count ?? rows.length) <= rows.length) return rows;
-  const pageCount = Math.ceil((first.count ?? rows.length) / MOVEMENT_PAGE_SIZE);
-  // Keep the history screen responsive even when a large branch is selected.
-  // Supabase/PostgREST can time out when dozens of page requests are started at once.
-  const maxConcurrentPages = 4;
-  for (let page = 1; page < pageCount; page += maxConcurrentPages) {
-    const pagesInBatch = Math.min(maxConcurrentPages, pageCount - page);
-    const results = await Promise.all(Array.from({ length: pagesInBatch }, (_, offset) => {
-      const currentPage = page + offset;
-      return queryPage(currentPage * MOVEMENT_PAGE_SIZE, (currentPage + 1) * MOVEMENT_PAGE_SIZE - 1);
-    }));
-    for (const result of results) {
-      if (result.error) throw result.error;
-      rows.push(...(result.data ?? []) as DbMovement[]);
-    }
-  }
-  return rows;
+  const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - RISK_RULES.lookbackDays);
+  const { data, error } = await supabase.from("stock_movements").select(fields)
+    .eq("warehouse_id", warehouseId).gte("created_at", cutoff.toISOString())
+    .order("created_at", { ascending: false }).order("id", { ascending: false }).limit(limit);
+  if (error) throw error;
+  return (data ?? []) as DbMovement[];
 }
 
-export async function getDashboardData(options: { includeFullMovementHistory?: boolean; includeDailyMovementSummary?: boolean } = {}): Promise<DashboardData> {
+export async function getPaginatedMovements(
+  page = 1,
+  pageSize = 25,
+  filters: { type?: "all" | MovementType; period?: "all" | "day" | "week" | "month"; query?: string } = {}
+): Promise<{
+  rows: MovementRecord[];
+  total: number;
+  page: number;
+  pageSize: number;
+}> {
+  const safePage = Math.max(1, Math.floor(page) || 1);
+  const safePageSize = Math.min(100, Math.max(1, Math.floor(pageSize) || 25));
+
+  const supabase = await createSupabaseServerClient();
+  const { warehouseId, userId } = await getWarehouseContext();
+
+  if (!userId) {
+    throw new Error("Unauthorized");
+  }
+
+  if (!warehouseId) {
+    return {
+      rows: [],
+      total: 0,
+      page: safePage,
+      pageSize: safePageSize,
+    };
+  }
+
+  const from = (safePage - 1) * safePageSize;
+  const to = from + safePageSize - 1;
+
+  let query = supabase.from("stock_movements").select("id,movement_type,quantity,reason,created_at,batch_id,product_id", { count: "exact" })
+    .eq("warehouse_id", warehouseId).order("created_at", { ascending: false }).order("id", { ascending: false });
+  if (filters.type && filters.type !== "all") query = query.eq("movement_type", filters.type);
+  if (filters.period && filters.period !== "all") {
+    const days = filters.period === "day" ? 1 : filters.period === "week" ? 7 : 30;
+    query = query.gte("created_at", new Date(Date.now() - days * 86_400_000).toISOString());
+  }
+  const term = filters.query?.trim().slice(0, 100) ?? "";
+  if (term) {
+    const safeTerm = term.replace(/[(),\"]/g, " ").replace(/[\\%_]/g, "\\$&");
+    const pattern = `%${safeTerm}%`;
+    const [products, batches] = await Promise.all([
+      supabase.from("products").select("id").eq("warehouse_id", warehouseId).ilike("name", pattern).limit(500),
+      supabase.from("product_batches").select("id").ilike("batch_number", pattern).limit(500),
+    ]);
+    if (products.error) throw products.error;
+    if (batches.error) throw batches.error;
+    const parts = [`reason.ilike.${pattern}`];
+    const ids = (products.data ?? []).map((row) => row.id);
+    const batchIds = (batches.data ?? []).map((row) => row.id);
+    if (ids.length) parts.push(`product_id.in.(${ids.join(",")})`);
+    if (batchIds.length) parts.push(`batch_id.in.(${batchIds.join(",")})`);
+    query = query.or(parts.join(","));
+  }
+  const { data, count, error } = await query.range(from, to);
+  if (error) throw error;
+
+  const movementRows = (data ?? []) as DbMovement[];
+
+  const productIds = [...new Set(movementRows.map((row) => row.product_id))];
+  const batchIds = [
+    ...new Set(
+      movementRows
+        .map((row) => row.batch_id)
+        .filter((id): id is string => Boolean(id))
+    ),
+  ];
+
+  const [productsResult, batchesResult] = await Promise.all([
+    productIds.length
+      ? supabase.from("products").select("id,name").in("id", productIds)
+      : Promise.resolve({ data: [], error: null }),
+    batchIds.length
+      ? supabase.from("product_batches").select("id,batch_number").in("id", batchIds)
+      : Promise.resolve({ data: [], error: null }),
+  ]);
+
+  if (productsResult.error) throw productsResult.error;
+  if (batchesResult.error) throw batchesResult.error;
+
+  const productNames = new Map(
+    (productsResult.data ?? []).map((product) => [product.id, product.name])
+  );
+
+  const batchNumbers = new Map(
+    (batchesResult.data ?? []).map((batch) => [batch.id, batch.batch_number])
+  );
+
+  const rows = movementRows.map((movement) =>
+    movementFor(
+      productNames.get(movement.product_id) ?? "Archived product",
+      movement,
+      batchNumbers
+    )
+  );
+
+  return {
+    rows,
+    total: count ?? 0,
+    page: safePage,
+    pageSize: safePageSize,
+  };
+}
+
+export async function getDashboardData(options: {
+  includeDailyMovementSummary?: boolean;
+  skipMovements?: boolean;
+  movementLimit?: number;
+} = {}): Promise<DashboardData> {
   try {
-    const supabase = await createSupabaseServerClient();
-    const { data: userData } = await supabase.auth.getUser();
-    if (!userData.user) return { products: [], recentMovements: [], movementHistory: [], dataAvailable: false, signedIn: false };
-    const { warehouseId } = await getWarehouseContext();
+const supabase = await createSupabaseServerClient();
+
+const warehouseStart = performance.now();
+
+const { warehouseId, userId } = await getWarehouseContext();
+
+console.log(
+  `[Dashboard] Warehouse took ${(performance.now() - warehouseStart).toFixed(0)}ms`
+);
+
+if (!userId) {
+  return {
+    products: [],
+    recentMovements: [],
+    movementHistory: [],
+    dataAvailable: false,
+    signedIn: false
+  };
+}
+
+    console.log(
+      `[Dashboard] Warehouse took ${(performance.now() - warehouseStart).toFixed(0)}ms`
+    );
     if (!warehouseId) return { products: [], recentMovements: [], movementHistory: [], dataAvailable: true, signedIn: true };
     const dailySummaryRequest = async () => {
       if (!options.includeDailyMovementSummary) return { rows: [] as DbDailySummary[], error: null };
@@ -91,7 +196,10 @@ export async function getDashboardData(options: { includeFullMovementHistory?: b
         // or available batches. Keep the normal workspace read bounded to stock on hand.
         .gt("product_batches.quantity", 0)
         .order("created_at", { ascending: false }),
-      readMovements(supabase, warehouseId, options.includeFullMovementHistory === true),
+      
+      options.skipMovements
+      ? Promise.resolve([] as DbMovement[])
+      : readMovements(supabase, warehouseId, options.movementLimit ?? RECENT_MOVEMENT_LIMIT),
       supabase.rpc("get_warehouse_outbound_summary", { p_warehouse_id: warehouseId, p_days: RISK_RULES.lookbackDays }),
       dailySummaryRequest(),
     ]);
