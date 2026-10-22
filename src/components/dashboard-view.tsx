@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowLeftRight, ArrowRight, PackagePlus, Boxes, Package, TriangleAlert, CalendarClock, TrendingDown } from "lucide-react";
+import { ArrowLeftRight, ArrowRight, PackagePlus } from "lucide-react";
 import { PageHeading, KpiStrip, Panel, PanelHeader, Th } from "@/components/workspace-ui";
 import { StatusBadge } from "@/components/status-badge";
 import { getPriorityProducts } from "@/lib/insights";
@@ -69,11 +69,11 @@ export function DashboardView({ data, locale = "en" }: { data: DashboardData; lo
     <PageHeading title={my ? "ဒက်ရှ်ဘုတ်" : "Dashboard"} description={my ? "လက်ကျန်အခြေအနေနှင့် အရေးယူရန်လိုသည့် ကိစ္စများကို ကြည့်ပါ။" : "Today's warehouse position and the actions that need you."} actions={<><Link href="/movements" className="page-action"><ArrowLeftRight aria-hidden="true" className="h-4 w-4" strokeWidth={1.7} />{my ? "စတော့ဝင်/ထွက်" : "Stock In / Out"}</Link><Link href="/inventory?add=1" className="page-action-primary"><PackagePlus aria-hidden="true" className="h-4 w-4" strokeWidth={1.7} />{my ? "ကုန်ပစ္စည်းထည့်ရန်" : "Add Products"}</Link></>} />
     {!data.dataAvailable && <p role="alert" className="mb-5 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">{data.errorMessage ?? (my ? "ဂိုဒေါင်ဒေတာကို ဖတ်၍မရပါ။" : "Warehouse data is unavailable.")}</p>}
     <KpiStrip size="lg" items={[
-      { icon: Boxes, label: my ? "ကုန်ပစ္စည်းစုစုပေါင်း" : "Total products", value: number.format(products.length), hint: my ? "အသက်ဝင်သောမှတ်တမ်း" : "Active product records", href: "/inventory" },
-      { icon: Package, label: my ? "လက်ကျန်ယူနစ်" : "Total stock units", value: number.format(units), hint: my ? "ယူနစ်အားလုံးပေါင်း" : "Across all units of measure" },
-      { icon: TriangleAlert, label: my ? "လက်ကျန်နည်း" : "Low-stock items", value: number.format(low), hint: my ? "ပြန်ဖြည့်ရန် စစ်ဆေးရန်" : "At or below reorder point", tone: low ? "warning" : "default", href: "/inventory?risk=low_stock" },
-      { icon: CalendarClock, label: my ? "သက်တမ်းကုန်ရန်နီး" : "Expiring items", value: number.format(expiring), hint: my ? "သက်တမ်းကာလအတွင်း" : "Batches inside expiry window", tone: expiring ? "expiry" : "default", href: "/expiry" },
-      { icon: TrendingDown, label: my ? "ကုန်ခန်းနိုင်ခြေ" : "Stockout risks", value: number.format(stockout), hint: my ? "လက်ကျန်ရက် နည်းနေသည်" : "Short days of cover", tone: stockout ? "danger" : "default", href: "/inventory?risk=stockout_risk" },
+      { label: my ? "ကုန်ပစ္စည်းစုစုပေါင်း" : "Total products", value: number.format(products.length), hint: my ? "အသက်ဝင်သောမှတ်တမ်း" : "Active product records", href: "/inventory" },
+      { label: my ? "လက်ကျန်ယူနစ်" : "Total stock units", value: number.format(units), hint: my ? "ယူနစ်အားလုံးပေါင်း" : "Across all units of measure" },
+      { label: my ? "လက်ကျန်နည်း" : "Low-stock items", value: number.format(low), hint: my ? "ပြန်ဖြည့်ရန် စစ်ဆေးရန်" : "At or below reorder point", tone: low ? "warning" : "default", href: "/inventory?risk=low_stock" },
+      { label: my ? "သက်တမ်းကုန်ရန်နီး" : "Expiring items", value: number.format(expiring), hint: my ? "သက်တမ်းကာလအတွင်း" : "Batches inside expiry window", tone: expiring ? "expiry" : "default", href: "/expiry" },
+      { label: my ? "ကုန်ခန်းနိုင်ခြေ" : "Stockout risks", value: number.format(stockout), hint: my ? "လက်ကျန်ရက် နည်းနေသည်" : "Short days of cover", tone: stockout ? "danger" : "default", href: "/inventory?risk=stockout_risk" },
     ]} />
     <div className="grid gap-5 lg:grid-cols-3"><InventoryStatus products={products} locale={locale} /><PriorityActions data={data} locale={locale} /><AttentionTable data={data} locale={locale} /><RecentMovements movements={movements} locale={locale} /></div>
     {attention > 0 && <span className="sr-only">{number.format(attention)} {my ? "ကုန်ပစ္စည်း အာရုံစိုက်ရန်လိုသည်" : "items need attention"}</span>}
