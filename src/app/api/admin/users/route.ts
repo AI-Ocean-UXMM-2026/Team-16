@@ -5,7 +5,11 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 const createSchema = z.object({ warehouseIds: z.array(z.string().uuid()).min(1).max(50), email: z.string().trim().email().max(254).transform((value) => value.toLowerCase()), username: z.string().trim().toLowerCase().regex(/^[a-z0-9_]{3,32}$/), fullName: z.string().trim().min(1).max(120), role: z.enum(["system_admin", "editor", "viewer"]) }).transform((input) => ({ ...input, warehouseIds: [...new Set(input.warehouseIds)] }));
 const roleSchema = z.object({ warehouseId: z.string().uuid(), userId: z.string().uuid(), role: z.enum(["system_admin", "editor", "viewer"]) });
-const assignSchema = z.object({ warehouseId: z.string().uuid(), userId: z.string().uuid(), role: z.enum(["editor", "viewer"]) });
+const workspaceAccessSchema = z.object({
+  userId: z.string().uuid(),
+  warehouseIds: z.array(z.string().uuid()).max(50),
+  role: z.enum(["system_admin", "editor", "viewer"]),
+}).transform((input) => ({ ...input, warehouseIds: [...new Set(input.warehouseIds)] }));
 
 async function requireAdmin() {
   const supabase = await createSupabaseServerClient(); const { data: auth } = await supabase.auth.getUser();
@@ -15,60 +19,95 @@ async function requireAdmin() {
   return { userId: auth.user.id };
 }
 
-export async function GET(request: Request) {
+export async function GET() {
   const access = await requireAdmin(); if (access.error) return access.error;
-  const warehouseId = new URL(request.url).searchParams.get("warehouseId");
-  if (!warehouseId || !z.string().uuid().safeParse(warehouseId).success) return NextResponse.json({ error: "Choose a valid warehouse." }, { status: 400 });
   try {
     const admin = createSupabaseAdminClient();
-    const [{ data: members, error }, { data: admins, error: adminError }, { data: allProfiles, error: allProfilesError }] = await Promise.all([
-      admin.from("warehouse_members").select("user_id,role").eq("warehouse_id", warehouseId).order("created_at"),
+    const [{ data: warehouses, error: warehouseError }, { data: members, error }, { data: admins, error: adminError }, { data: allProfiles, error: allProfilesError }] = await Promise.all([
+      admin.from("warehouses").select("id,name").is("archived_at", null).order("name"),
+      admin.from("warehouse_members").select("user_id,role,warehouse_id").order("created_at"),
       admin.from("system_admins").select("user_id"),
       admin.from("profiles").select("id,full_name,username"),
     ]);
+    if (warehouseError) throw warehouseError;
     if (error) throw error;
     if (adminError) throw adminError;
     if (allProfilesError) throw allProfilesError;
     const adminIds = new Set((admins ?? []).map((item) => item.user_id));
-    const memberIds = new Set((members ?? []).map((member) => member.user_id));
-    const ids = [...new Set([...(members ?? []).map((member) => member.user_id), ...adminIds])];
-    if (!ids.length) return NextResponse.json({ users: [], availableUsers: [] });
-    const { data: profiles, error: profileError } = await admin.from("profiles").select("id,full_name,username").in("id", ids);
-    if (profileError) throw profileError; if (adminError) throw adminError;
-    const profileById = new Map((profiles ?? []).map((profile) => [profile.id, profile]));
-    const roleById = new Map((members ?? []).map((member) => [member.user_id, member.role]));
+    const warehouseIds = new Set((warehouses ?? []).map((warehouse) => warehouse.id));
+    const memberships = new Map<string, { warehouseId: string; role: "editor" | "viewer" }[]>();
+    for (const member of members ?? []) {
+      if (!warehouseIds.has(member.warehouse_id)) continue;
+      const current = memberships.get(member.user_id) ?? [];
+      current.push({ warehouseId: member.warehouse_id, role: member.role });
+      memberships.set(member.user_id, current);
+    }
+    const ids = [...new Set([...(allProfiles ?? []).map((profile) => profile.id), ...adminIds])];
+    const profileById = new Map((allProfiles ?? []).map((profile) => [profile.id, profile]));
     const users = await Promise.all(ids.map(async (userId) => {
       const { data: authUser } = await admin.auth.admin.getUserById(userId);
       const profile = profileById.get(userId);
-      return { userId, fullName: profile?.full_name ?? "", username: profile?.username ?? "", email: authUser.user?.email ?? "", role: adminIds.has(userId) ? "system_admin" : roleById.get(userId) ?? "viewer", isGlobalAdmin: adminIds.has(userId), hasBranchMembership: memberIds.has(userId) };
+      const userMemberships = memberships.get(userId) ?? [];
+      const roles = new Set(userMemberships.map((membership) => membership.role));
+      return {
+        userId,
+        fullName: profile?.full_name ?? "",
+        username: profile?.username ?? "",
+        email: authUser.user?.email ?? "",
+        role: adminIds.has(userId) ? "system_admin" : userMemberships.length && roles.size === 1 ? userMemberships[0].role : userMemberships.length ? "editor" : "viewer",
+        isGlobalAdmin: adminIds.has(userId),
+        hasBranchMembership: userMemberships.length > 0,
+        warehouseIds: adminIds.has(userId) ? [...warehouseIds] : userMemberships.map((membership) => membership.warehouseId),
+      };
     }));
-    const availableUsers = await Promise.all((allProfiles ?? []).filter((profile) => !memberIds.has(profile.id) && !adminIds.has(profile.id)).map(async (profile) => {
-      const { data: authUser } = await admin.auth.admin.getUserById(profile.id);
-      return { userId: profile.id, fullName: profile.full_name ?? "", username: profile.username ?? "", email: authUser.user?.email ?? "" };
-    }));
-    return NextResponse.json({ users, availableUsers });
+    return NextResponse.json({ users, warehouses: warehouses ?? [] });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Users could not be loaded." }, { status: 500 });
   }
 }
 
 export async function PUT(request: Request) {
-  const parsed = assignSchema.safeParse(await request.json().catch(() => null));
-  if (!parsed.success) return NextResponse.json({ error: "Choose a valid user, warehouse, and role." }, { status: 400 });
+  const parsed = workspaceAccessSchema.safeParse(await request.json().catch(() => null));
+  if (!parsed.success) return NextResponse.json({ error: "Choose a valid user, role, and branch list." }, { status: 400 });
   const access = await requireAdmin(); if (access.error) return access.error;
   try {
     const admin = createSupabaseAdminClient();
-    const [{ data: warehouse }, { data: profile }] = await Promise.all([
-      admin.from("warehouses").select("id").eq("id", parsed.data.warehouseId).maybeSingle(),
-      admin.from("profiles").select("id").eq("id", parsed.data.userId).maybeSingle(),
+    const input = parsed.data;
+    if (input.userId === access.userId && input.role !== "system_admin") return NextResponse.json({ error: "You cannot remove your own System Admin access." }, { status: 400 });
+    const [{ data: warehouseRows }, { data: profile }, { data: targetAdmin }] = await Promise.all([
+      input.warehouseIds.length ? admin.from("warehouses").select("id").is("archived_at", null).in("id", input.warehouseIds) : Promise.resolve({ data: [] }),
+      admin.from("profiles").select("id").eq("id", input.userId).maybeSingle(),
+      admin.from("system_admins").select("user_id").eq("user_id", input.userId).maybeSingle(),
     ]);
-    if (!warehouse || !profile) return NextResponse.json({ error: "The selected user or branch could not be found." }, { status: 404 });
-    const { error } = await admin.from("warehouse_members").upsert({ warehouse_id: parsed.data.warehouseId, user_id: parsed.data.userId, role: parsed.data.role }, { onConflict: "warehouse_id,user_id" });
-    if (error) throw error;
-    return NextResponse.json({ ok: true });
+    if (!profile) return NextResponse.json({ error: "The selected user could not be found." }, { status: 404 });
+    if ((warehouseRows ?? []).length !== input.warehouseIds.length) return NextResponse.json({ error: "One or more selected branches are unavailable." }, { status: 404 });
+    if (targetAdmin && input.role !== "system_admin") {
+      const { count, error } = await admin.from("system_admins").select("user_id", { count: "exact", head: true });
+      if (error) throw error;
+      if ((count ?? 0) <= 1) return NextResponse.json({ error: "At least one System Admin must remain." }, { status: 400 });
+    }
+    if (input.role === "system_admin") {
+      const { error } = await admin.from("system_admins").upsert({ user_id: input.userId }, { onConflict: "user_id" });
+      if (error) throw error;
+    } else {
+      const { error: membershipError } = input.warehouseIds.length
+        ? await admin.from("warehouse_members").upsert(input.warehouseIds.map((warehouse_id) => ({ warehouse_id, user_id: input.userId, role: input.role })), { onConflict: "warehouse_id,user_id" })
+        : { error: null };
+      if (membershipError) throw membershipError;
+      if (targetAdmin) {
+        const { error } = await admin.from("system_admins").delete().eq("user_id", input.userId);
+        if (error) throw error;
+      }
+      const membershipDelete = input.warehouseIds.length
+        ? admin.from("warehouse_members").delete().eq("user_id", input.userId).not("warehouse_id", "in", `(${input.warehouseIds.join(",")})`)
+        : admin.from("warehouse_members").delete().eq("user_id", input.userId);
+      const { error } = await membershipDelete;
+      if (error) throw error;
+    }
+    return NextResponse.json({ ok: true, message: "User role and branch access updated." });
   } catch (error) {
-    console.error("Branch user assignment failed", error);
-    return NextResponse.json({ error: "This user could not be assigned to the selected branch. Please retry." }, { status: 500 });
+    console.error("User access update failed", error);
+    return NextResponse.json({ error: "User role and branch access could not be updated. Please retry." }, { status: 500 });
   }
 }
 
