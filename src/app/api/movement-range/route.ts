@@ -23,16 +23,24 @@ export async function GET(request: Request) {
     const [{ warehouseId, userId }, supabase] = await Promise.all([getWarehouseContext(), createSupabaseServerClient()]);
     if (!userId) return NextResponse.json({ error: "Sign in to view movement totals." }, { status: 401 });
     if (!warehouseId) return NextResponse.json({ error: "Choose a branch to view its movement totals." }, { status: 400 });
-    const { data, error } = await supabase.rpc("get_warehouse_movement_range_summary", {
-      p_warehouse_id: warehouseId,
-      p_start_date: fromValue || null,
-      p_end_date: toValue,
-    });
-    if (error) {
-      console.error("Movement range summary failed", error.message);
-      return NextResponse.json({ error: "Movement totals are temporarily unavailable. Please try again." }, { status: 503 });
+    // PostgREST caps a response at the configured max_rows. Page the daily
+    // rollup so a multi-year history is not silently truncated to one year.
+    const pageSize = 1_000;
+    const rows: { day: string; type: string; units: number; count: number }[] = [];
+    for (let offset = 0; ; offset += pageSize) {
+      const { data, error } = await supabase.rpc("get_warehouse_movement_range_summary", {
+        p_warehouse_id: warehouseId,
+        p_start_date: fromValue || null,
+        p_end_date: toValue,
+      }).range(offset, offset + pageSize - 1);
+      if (error) {
+        console.error("Movement range summary failed", error.message);
+        return NextResponse.json({ error: "Movement totals are temporarily unavailable. Please try again." }, { status: 503 });
+      }
+      const page = (data ?? []) as { movement_day: string; movement_type: string; unit_total: number; movement_count: number }[];
+      rows.push(...page.map((row) => ({ day: row.movement_day, type: row.movement_type, units: Number(row.unit_total), count: Number(row.movement_count) })));
+      if (page.length < pageSize) break;
     }
-    const rows = ((data ?? []) as { movement_day: string; movement_type: string; unit_total: number; movement_count: number }[]).map((row) => ({ day: row.movement_day, type: row.movement_type, units: Number(row.unit_total), count: Number(row.movement_count) }));
     return NextResponse.json({ rows, from: fromValue || null, to: toValue });
   } catch (error) {
     console.error("Movement range request failed", error);
