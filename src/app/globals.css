@@ -24,8 +24,8 @@ table th, table td { white-space: nowrap; }
   .panel { @apply rounded-xl border border-slate-200 bg-white; }
   .page-wrap { @apply mx-auto flex w-full max-w-[1440px] flex-col gap-5 px-4 py-6 sm:px-6 xl:px-8; }
   .section-heading { @apply text-base font-semibold tracking-tight text-slate-900; }
-  .table-head { @apply sticky top-0 z-10 border-b border-slate-200 bg-slate-50 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500; }
-  .table-scroll { @apply min-h-0 flex-1 overflow-auto overscroll-contain; -webkit-overflow-scrolling: touch; touch-action: pan-x pan-y; }
+  .table-head { @apply border-b border-slate-200 bg-slate-50 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500; }
+  .table-scroll { @apply min-w-0 overflow-x-auto overscroll-x-contain; -webkit-overflow-scrolling: touch; touch-action: pan-x; }
   .insights-wrap > section:last-child { order: 1; }
   .table-foot { @apply flex shrink-0 items-center justify-between gap-3 border-t border-slate-200 bg-white px-4 py-3 text-sm text-slate-500 sm:px-5; }
   .page-action { @apply inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3.5 text-sm font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 disabled:cursor-wait disabled:opacity-60; }

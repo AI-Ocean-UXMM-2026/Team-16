@@ -93,8 +93,8 @@ export function PanelHeading({ title, description, action }: { title: string; de
 }
 
 export function TableFrame({ children, footer, className }: { children: ReactNode; footer?: ReactNode; className?: string }) {
-  return <section className={cn("panel flex min-h-[360px] min-w-0 flex-col overflow-hidden", className)}>
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">{children}</div>
+  return <section className={cn("panel min-w-0 overflow-hidden", className)}>
+    <div className="min-w-0">{children}</div>
     {footer && <footer className="flex shrink-0 items-center justify-between gap-3 border-t border-slate-200 bg-white px-4 py-3 text-sm text-slate-500 sm:px-5">{footer}</footer>}
   </section>;
 }
