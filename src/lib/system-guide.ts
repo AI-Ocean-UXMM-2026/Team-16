@@ -103,6 +103,10 @@ const guides: Record<Locale, Record<GuideRole, RoleGuide>> = {
 export function getRoleGuide(locale: Locale, role: GuideRole): RoleGuide {
   return guides[locale][role];
 }
+
+export function isSystemGuideQuestion(question: string): boolean {
+  return detectGuideTopic(question) !== null;
+}
 const roleLabels: Record<Locale, Record<GuideRole, string>> = {
   en: { system_admin: "System Admin", editor: "Editor", viewer: "Viewer" },
   my: { system_admin: "စနစ်စီမံခန့်ခွဲသူ", editor: "တည်းဖြတ်သူ", viewer: "ကြည့်ရှုသူ" },

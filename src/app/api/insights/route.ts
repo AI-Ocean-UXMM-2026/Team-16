@@ -3,7 +3,7 @@ import { casualAnswer, deterministicAnswer, groundFacts, supportsDeterministicQu
 import { getDashboardData } from "@/lib/data";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getWarehouseContext } from "@/lib/warehouse";
-import { answerSystemGuideQuestion } from "@/lib/system-guide";
+import { answerSystemGuideQuestion, isSystemGuideQuestion } from "@/lib/system-guide";
 import { z } from "zod";
 
 type ResponsePayload = { output_text?: unknown };
@@ -15,9 +15,11 @@ export async function POST(request: Request) {
   if (!parsed.success) return NextResponse.json({ error: "Ask a question between 3 and 500 characters." }, { status: 400 });
   const question = parsed.data.question;
   const locale = parsed.data.locale;
-  const context = await getWarehouseContext().catch(() => null);
-  const guideAnswer = answerSystemGuideQuestion(question, locale, context?.userRole ?? "viewer");
-  if (guideAnswer) return NextResponse.json({ answer: guideAnswer, source: "guide" });
+  if (isSystemGuideQuestion(question)) {
+    const context = await getWarehouseContext().catch(() => null);
+    const guideAnswer = answerSystemGuideQuestion(question, locale, context?.userRole ?? "viewer");
+    if (guideAnswer) return NextResponse.json({ answer: guideAnswer, source: "guide" });
+  }
   const data = await getDashboardData();
   const casual = casualAnswer(data, question, locale);
   if (casual) return NextResponse.json({ answer: casual, source: "deterministic" });
