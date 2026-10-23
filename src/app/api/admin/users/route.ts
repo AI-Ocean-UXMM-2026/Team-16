@@ -120,10 +120,10 @@ export async function POST(request: Request) {
   const access = await requireAdmin(); if (access.error) return access.error;
   try {
     const admin = createSupabaseAdminClient(); const input = parsed.data;
-    const [{ data: warehouseRows }, { data: username }] = await Promise.all([admin.from("warehouses").select("id").in("id", input.warehouseIds), admin.from("profiles").select("id").eq("username", input.username).maybeSingle()]);
+    const [{ data: warehouseRows }, { data: username }] = await Promise.all([admin.from("warehouses").select("id").is("archived_at", null).in("id", input.warehouseIds), admin.from("profiles").select("id").eq("username", input.username).maybeSingle()]);
     if ((warehouseRows ?? []).length !== input.warehouseIds.length) return NextResponse.json({ error: "One or more selected branches could not be found." }, { status: 404 });
     if (username) return NextResponse.json({ error: "That username is already in use." }, { status: 409 });
-    const { data: provision, error: provisionError } = await admin.from("user_provisioning_tokens").insert({ email: input.email, username: input.username, full_name: input.fullName, warehouse_id: input.warehouseIds[0], app_role: input.role, invited_by: access.userId }).select("token").single();
+    const { data: provision, error: provisionError } = await admin.from("user_provisioning_tokens").insert({ email: input.email, username: input.username, full_name: input.fullName, warehouse_id: input.warehouseIds[0], warehouse_ids: input.warehouseIds, app_role: input.role, invited_by: access.userId }).select("token").single();
     if (provisionError || !provision) return NextResponse.json({ error: provisionError?.message ?? "User invitation could not be prepared." }, { status: 400 });
     const { data: created, error: createError } = await admin.auth.admin.createUser({
       email: input.email,
