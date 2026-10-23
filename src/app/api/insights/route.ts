@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { casualAnswer, deterministicAnswer, groundFacts, supportsDeterministicQuestion } from "@/lib/insights";
+import { casualAnswer, deterministicAnswer, groundFacts, isInventoryRelatedQuestion, supportsDeterministicQuestion, unrelatedFallbackAnswer } from "@/lib/insights";
 import { getDashboardData } from "@/lib/data";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getWarehouseContext } from "@/lib/warehouse";
@@ -50,13 +50,15 @@ export async function POST(request: Request) {
       console.error("Movement totals could not be calculated", error);
     }
   }
-  const fallback = deterministicAnswer(data, question, locale);
+  const fallback = isInventoryRelatedQuestion(question) || supportsDeterministicQuestion(question)
+    ? deterministicAnswer(data, question, locale)
+    : unrelatedFallbackAnswer(data, question, locale);
   // Exact inventory lookups must come from our calculated facts, not a model
   // summary that can drift away from the question or confuse risk with zero stock.
   if (!data.dataAvailable || !data.products.length || supportsDeterministicQuestion(question) || !process.env.OPENAI_API_KEY || !process.env.OPENAI_MODEL) return NextResponse.json({ answer: fallback, source: "deterministic" });
   const facts = groundFacts(data);
   try {
-    const response = await fetch("https://api.openai.com/v1/responses", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${process.env.OPENAI_API_KEY}` }, body: JSON.stringify({ model: process.env.OPENAI_MODEL, input: `You are Ask StockSense, a read-only inventory assistant with a warm, lightly playful personality. Answer the manager's exact question first. Do not substitute a general risk summary for a specific lookup. Use ONLY the verified JSON facts below for inventory claims. Never invent product names, quantities, dates, branch facts, weather, or demand estimates. For unrelated casual questions (including boredom or weather), answer naturally and briefly, optionally make a gentle joke, then connect it to an actual warehouse fact if one is available. If asked for current weather, say you do not have live weather access and do not guess. If the facts do not contain the answer, say so plainly and suggest a useful inventory question that can be answered. After the direct answer, offer up to three brief suggested checks or actions that follow directly from these facts. Do not make changes or suggest that you executed an action. Use ${locale === "my" ? "Burmese" : "English"}, preserve product names, SKUs, and recorded values, and format lists as short bullets with blank lines between sections.\n\nManager question: ${question}\n\nVerified facts for the selected warehouse:\n${JSON.stringify(facts)}` }) });
+    const response = await fetch("https://api.openai.com/v1/responses", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${process.env.OPENAI_API_KEY}` }, body: JSON.stringify({ model: process.env.OPENAI_MODEL, input: `You are Ask StockSense, a read-only inventory assistant with a warm, witty, practical personality. Answer the exact question directly. Do not substitute a generic stock-risk summary for a specific inventory lookup. Use ONLY the verified JSON facts below for claims about this workspace. Never invent product names, quantities, dates, branches, expiry details, or demand estimates. When a question is unrelated to inventory, still answer it naturally and helpfully if it is within your general knowledge; do not refuse just because it is off-topic. Keep the answer concise, add a light amusing line when it fits, and connect it back to one relevant verified warehouse fact as a brief aside rather than forcing an inventory recommendation. Do not claim human feelings, personal experiences, or live access. For changing or real-time facts (such as today's weather, prices, or breaking news), say you do not have live data and do not guess. If warehouse facts are unavailable or insufficient, say so clearly without inventing numbers. Only suggest inventory checks when relevant to the user's question. The assistant is read-only and must never imply it has executed a change. Use ${locale === "my" ? "Burmese" : "English"}, preserve product names, SKUs, and recorded values, and format lists as short bullets with blank lines between sections.\n\nUser question: ${question}\n\nVerified facts for the selected warehouse:\n${JSON.stringify(facts)}` }) });
     if (!response.ok) return NextResponse.json({ answer: fallback, source: "deterministic" });
     const payload = await response.json() as ResponsePayload;
     const answer = typeof payload.output_text === "string" && payload.output_text.trim() ? payload.output_text.trim() : fallback;

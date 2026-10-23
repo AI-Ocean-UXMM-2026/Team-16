@@ -22,6 +22,7 @@ StockSense helps small retail and food operators make confident day-to-day inven
 - The StockSense mark and title use the shared open-box brand asset and link to the root route.
 - Branch changes show an inline spinner and shared route progress feedback until refreshed data arrives.
 - Recently Viewed is user-specific and holds at most ten destinations.
+- Place System Guide directly above Settings in the sidebar's bottom group and include it in the avatar menu. The guide defaults to the signed-in role and presents one task at a time in a two-column topic navigator and reader. Its Focus mode is a full-screen, scrollable reading surface with visible close control and Escape support.
 - Ask StockSense uses a compact circular chat launcher with a centered icon. It is lower-opacity at rest and becomes fully visible on hover or keyboard focus. It remains clickable on touch screens and opens only on click; hover must not expand it. The panel closes with Escape, its close button, or an outside click. Opening leaves the question empty and rotates three prompts from a static bank of 100 common questions in the active locale without a network request.
 
 ## Page patterns
@@ -53,7 +54,8 @@ Keep Profile & password, User access, and Configuration separated by tabs. Only 
 - Use semantic buttons/inputs, associated labels, keyboard-operable searchable lists, accessible names, visible focus, and text labels for status.
 - Loading, empty, error, success, and validation states are required for data operations. Disabled state and progress feedback must be explicit.
 - Search results update as the user types.
+- Searchable dropdowns close on pointer/touch outside and close after a single selection. On coarse-pointer devices, multi-select dropdowns close after each selection so users can see the compact selected-count value and reopen the list for another choice. Keep selected values from expanding the trigger width.
 
 ## Data integrity
 
-Supabase is authoritative. Available stock is derived from batches; every stock change is recorded transactionally. Deterministic risk uses verified batches, expiry, and recent Stock Out history. The AI assistant is read-only and must not invent or mutate inventory facts.
+Supabase is authoritative. Available stock is derived from batches; every stock change is recorded transactionally. Deterministic risk uses verified batches, expiry, and recent Stock Out history. The AI assistant is read-only and must not invent or mutate inventory facts. How-to answers use the same role-aware content as the System Guide. General questions should be answered directly and pleasantly, with light humor when suitable and a verified inventory aside only when relevant; never claim live external information.

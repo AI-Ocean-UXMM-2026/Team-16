@@ -40,6 +40,7 @@ The initial operating context is a small multi-branch retail or food business. A
 6. **Ask StockSense.** Ask questions about stock, movements, expiry, and recommended next steps. Responses are read-only and based on verified data for the selected branch. The chat keeps its conversation while the page remains open and offers rotating suggested questions in English and Myanmar.
 7. **Report and export.** Review movement and inventory trends over a selected date range, then export relevant warehouse data.
 8. **Manage the workspace.** Update personal profile and password, configure categories, branches, and SKU format, and manage user roles, branch assignments, passwords, and account removal.
+9. **Learn the system.** Open the bilingual System Guide from the sidebar or avatar menu. Choose the System Admin, Editor, or Viewer guide, browse one workflow at a time, and optionally enter Focus mode for a full-screen reading view. Ask StockSense can answer natural-language questions about the same workflows using the caller's role.
 
 ## Roles and access
 
@@ -68,15 +69,17 @@ Accounts are created through administrator invitations. Public account registrat
 - Report insufficient history as unknown rather than inventing a forecast.
 - Ground assistant answers in verified facts from the selected branch. Distinguish a measured total from a forecast or recommendation.
 - The assistant is read-only. It cannot record movements, change products, alter users, or execute recommendations.
-- General or playful questions may receive a brief, friendly response, but must not imply external knowledge such as live weather or unsupported inventory facts.
+- For how-to questions, answer from the role-specific System Guide and respect actual role permissions. General questions should be answered naturally and helpfully, with light humor when appropriate and a brief connection to verified branch data when useful.
+- Do not imply personal experiences, live external knowledge such as weather, or unsupported inventory facts. If the AI provider is unavailable, use a friendly fallback that does not pretend to answer live or unknown facts.
 - AI output can be mistaken. Important operational decisions must be checked against inventory records.
 
 ### Workspace and interface
 
 - Authenticated areas: Dashboard, Inventory, Movements, Expiry, AI Insights, Reports, and Settings.
-- Shared navigation includes live global search with Ctrl/Cmd+K, Recently Viewed pages, a responsive collapsible sidebar, branch selection, language selection, notification counts, an account menu, and the floating Ask StockSense chat.
+- Shared navigation includes live global search with Ctrl/Cmd+K, Recently Viewed pages, a responsive collapsible sidebar, branch selection, language selection, notification counts, an account menu, the System Guide directly above Settings, and the floating Ask StockSense chat. System Guide is also available from the avatar menu.
+- The guide defaults to the signed-in role and presents one task at a time; Focus mode provides a keyboard-dismissible, full-screen reading view.
 - English and Myanmar are supported interface languages.
-- Tables, forms, filters, pagination, imports, exports, menus, and action buttons must have usable loading, empty, error, success, and validation states.
+- Tables, forms, filters, pagination, imports, exports, menus, and action buttons must have usable loading, empty, error, success, and validation states. Searchable menus must behave consistently with pointer and touch, dismiss after mobile selection, and remain easy to reopen for multi-select fields.
 - The interface should be light, minimal, responsive, accessible by keyboard, and consistent with `OceanBlue_Design_Guide.md`.
 
 ### Reporting

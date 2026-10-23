@@ -15,7 +15,7 @@ Keep the product focused on inventory decisions and warehouse operations. Do not
 
 ## Workspace and roles
 
-Authenticated destinations are Dashboard, Inventory, Movements, Expiry, AI Insights, Reports, and Settings. Preserve the live global search (Ctrl/Cmd+K), Recently Viewed, responsive/collapsible sidebar, language, notification count, branch picker, avatar menu, Settings, and floating Ask StockSense assistant.
+Authenticated destinations are Dashboard, Inventory, Movements, Expiry, AI Insights, Reports, System Guide, and Settings. Keep System Guide directly above Settings at the bottom of the sidebar and available from the avatar menu. Preserve the live global search (Ctrl/Cmd+K), Recently Viewed, responsive/collapsible sidebar, language, notification count, branch picker, avatar menu, Settings, and floating Ask StockSense assistant.
 
 - System Admin: all active branches and workspace configuration.
 - Editor: products and stock movements in assigned branches.
@@ -40,7 +40,10 @@ Seed and training data must be explicit, clearly identified in admin configurati
 
 - Calculate stock risk deterministically from current batches, expiry, and recent Stock Out history before asking an LLM to explain it. Insufficient history stays unknown.
 - Ask StockSense is read-only, grounded in verified branch facts, and cannot mutate stock. Keep the static bank of 100 neutral questions in both supported locales; rotate three per open without a network call. Clear the prompt input as soon as a question is submitted. Suggested prompts must be questions, not claims.
+- Maintain one System Guide source for both the role-specific guide page and assistant how-to answers. Provide System Admin, Editor, and Viewer versions, default to the signed-in role, and keep workflows aligned with actual permissions and UI behavior. Focus mode must be a dismissible, keyboard-accessible reading view.
+- Ask StockSense should answer unrelated general questions naturally and with light humor when appropriate, then connect briefly to a verified branch fact when one exists. Never fabricate inventory values or live external information. If the AI provider is unavailable, use a truthful, friendly fallback rather than an irrelevant inventory-risk summary.
 - Keep the light, minimal, responsive interface consistent with `assets/OceanBlue_Design_Guide.md`. Use clear hierarchy, thin icon/text weights, compact searchable selects, and visible keyboard focus.
+- Searchable dropdowns must dismiss reliably on pointer/touch outside and after selecting an option on mobile. Preserve intentional multi-selection on desktop; on coarse-pointer devices close after selection so the selected value is visible and the menu can be reopened.
 - Every visible control must work. Tables grow with page content and do not have internal vertical scrolling. On narrow screens, tables may scroll horizontally in their own wrapper. Keep page-size controls and pagination outside table wrappers.
 - Include loading, empty, error, success, and validation states. Do not invent chart values or present static data as live.
 - Keep the floating chat launcher circular and compact. It remains operable on touch, but is visually subdued until hover or keyboard focus; it must not expand on hover.

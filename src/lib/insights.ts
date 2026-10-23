@@ -27,6 +27,44 @@ export function supportsDeterministicQuestion(question: string) {
   return detectIntent(question) !== null;
 }
 
+export function isInventoryRelatedQuestion(question: string) {
+  return /\b(stock|inventory|warehouse|branch|branches|product|products|item|items|batch|batches|expiry|expired|movement|movements|stock\s*in|stock\s*out|sku|reorder|restock|risk|report|supplier|quantity|quantities|units|sales|shelf|stocksense)\b|စတော့|ကုန်ပစ္စည်း|ဂိုဒေါင်|ဆိုင်ခွဲ|အသုတ်|သက်တမ်း|ရွှေ့ပြောင်း|လက်ကျန်|အရေအတွက်|အစီရင်ခံစာ/u.test(question.toLocaleLowerCase());
+}
+
+/** Safe, playful fallback for general questions when an LLM is unavailable. */
+export function unrelatedFallbackAnswer(data: DashboardData, question: string, locale: Locale = "en") {
+  const myanmar = locale === "my";
+  const normalized = question.toLocaleLowerCase();
+  const number = new Intl.NumberFormat(myanmar ? "my-MM" : "en-US");
+  const totalUnits = data.products.reduce((sum, product) => sum + product.available, 0);
+  const expiringCount = data.products.reduce((sum, product) => sum + product.batches.filter((batch) => batch.quantity > 0 && batch.expiryDate !== null && (daysUntilDate(batch.expiryDate) ?? Infinity) <= 30).length, 0);
+  const verifiedAside = data.dataAvailable
+    ? myanmar
+      ? `အတည်ပြုထားသော စာရင်းအချက်အလက်အနေဖြင့် ယခုဆိုင်ခွဲတွင် ကုန်ပစ္စည်း ${number.format(data.products.length)} မျိုးနှင့် လက်ကျန် ${number.format(totalUnits)} ယူနစ်ရှိသည်။`
+      : `One verified warehouse aside: this branch has ${number.format(data.products.length)} active products and ${number.format(totalUnits)} available units.`
+    : myanmar ? "လက်ရှိဂိုဒေါင်ဒေတာကို မဖတ်ရှုနိုင်သဖြင့် စာရင်းကိန်းဂဏန်းကို မခန့်မှန်းပါ။" : "I can’t read verified warehouse data right now, so I won’t guess at inventory numbers.";
+
+  if (/weather|forecast|မိုးလေဝသ|ရာသီဥတု/.test(normalized)) return myanmar
+    ? `တိုက်ရိုက်မိုးလေဝသဒေတာ မရှိလို့ မိုးရွာမယ်လို့ မတီထွင်ပါဘူး။ StockSense မှာတော့ သက်တမ်းနီးအသုတ် ${number.format(expiringCount)} ခုကို စစ်ပေးနိုင်ပါတယ်။ ${verifiedAside}`
+    : `I don’t have live weather data, so I won’t make up a forecast. I can give your expiring batches a forecast, though: ${number.format(expiringCount)} are due within 30 days. ${verifiedAside}`;
+  if (/joke|funny|laugh|ဟာသ|ရယ်စရာ/.test(normalized)) return myanmar
+    ? `ဂိုဒေါင်ဟာသလေး: စတော့စာရင်းက ဘာလို့ စိတ်အေးရတာလဲ။ အရာအားလုံးကို ရေတွက်ပြီးသားမို့ပါ။ ${verifiedAside}`
+    : `Inventory joke: Why was the shelf so calm? Everything was accounted for. ${verifiedAside}`;
+  if (/movie|film|song|music|playlist|သီချင်း|ရုပ်ရှင်/.test(normalized)) return myanmar
+    ? `ဂိုဒေါင်အလုပ်အတွက် သီချင်းစာရင်းဆိုရင် “Count on Me” ကို အရင်ဖွင့်ပြီး စတော့ကိုတော့ စနစ်က ရေတွက်ပါစေ။ ${verifiedAside}`
+    : `For a stockroom playlist, start with “Count on Me” and let the system do the counting. ${verifiedAside}`;
+  if (/bored|boring|ပျင်း/.test(normalized)) return myanmar
+    ? `ပျင်းနေတယ်ဆိုရင် “အသုတ်စုံထောက်” လုပ်ကြည့်ပါ: သက်တမ်းနီးအသုတ်တွေကို ရှာပြီး ဘယ်ဟာကို အရင်ထုတ်သင့်လဲ စစ်ပါ။ လက်ရှိ သက်တမ်းနီးအသုတ် ${number.format(expiringCount)} ခုရှိပါတယ်။ ${verifiedAside}`
+    : `Bored? Play “batch detective”: find the nearest-expiring batch and decide what deserves a closer look first. There are ${number.format(expiringCount)} in-stock batches due within 30 days. ${verifiedAside}`;
+  if (/^(hi|hello|hey|how are you|မင်္ဂလာပါ)[!?.,\s]*$/.test(normalized.trim())) return myanmar
+    ? `မင်္ဂလာပါ။ စတော့စာရင်းမေးခွန်းဖြစ်ဖြစ် ရယ်စရာမေးခွန်းဖြစ်ဖြစ် အဆင်သင့်ပါပဲ။ ${verifiedAside}`
+    : `Hi! I’m stocked with inventory facts and a modest supply of warehouse jokes. ${verifiedAside}`;
+  const shortQuestion = question.trim().length <= 100;
+  return myanmar
+    ? `${shortQuestion ? `“${question.trim()}” ဆိုတာ စာရင်းအပြင်ဘက်က စိတ်ဝင်စားစရာမေးခွန်းပါ။` : "ဒီမေးခွန်းက စာရင်းအပြင်ဘက်က ရောက်လာတဲ့ စိတ်ဝင်စားစရာမေးခွန်းပါ။"} လူလိုအတွေ့အကြုံတော့ မရှိပေမဲ့ အသုတ်တွေကိုတော့ သေချာစစ်ပေးနိုင်ပါတယ်။ ${verifiedAside}`
+    : `${shortQuestion ? `“${question.trim()}” is a fun curveball from outside the stockroom.` : "That’s a fun curveball from outside the stockroom."} I don’t have human experiences, but I can keep the batches accounted for. ${verifiedAside}`;
+}
+
 /** Handles casual prompts without requiring an AI provider or inventing live facts. */
 export function casualAnswer(data: DashboardData, question: string, locale: Locale = "en") {
   const normalized = question.toLocaleLowerCase();
@@ -34,9 +72,7 @@ export function casualAnswer(data: DashboardData, question: string, locale: Loca
   const asksWeather = /weather|forecast|မိုးလေဝသ|ရာသီဥတု/.test(normalized);
   const asksBoredom = /bored|boring|ဘာလုပ်ရမလဲ|ပျင်း/.test(normalized);
   const asksGreeting = /^(hi|hello|hey|how are you|မင်္ဂလာပါ)[!?.,\s]*$/.test(normalized.trim());
-  const asksGenericAdvice = /what should i do|what can i do|tell me a joke|make me laugh/.test(normalized)
-    && !/stock|inventory|product|batch|expiry|warehouse|movement|စတော့|ကုန်ပစ္စည်း|အသုတ်/.test(normalized);
-  if (!asksWeather && !asksBoredom && !asksGreeting && !asksGenericAdvice) return null;
+  if (!asksWeather && !asksBoredom && !asksGreeting) return null;
 
   const totalUnits = data.products.reduce((sum, product) => sum + product.available, 0);
   const expiryBatchCount = data.products.reduce((sum, product) => sum + product.batches.filter((batch) => batch.quantity > 0 && batch.expiryDate !== null && (daysUntilDate(batch.expiryDate) ?? Infinity) <= 30).length, 0);
@@ -50,9 +86,11 @@ export function casualAnswer(data: DashboardData, question: string, locale: Loca
   if (asksWeather) return myanmar
     ? `မိုးလေဝသကို တိုက်ရိုက်ကြည့်ရှုခွင့် မရှိသေးပါ၊ ဒါကြောင့် ရန်ကုန်ရာသီဥတုကို မခန့်မှန်းပါဘူး။ ဂိုဒေါင်အတွင်း မိုးရွာသလို စတော့အန္တရာယ်ရှိမရှိတော့ စစ်ပေးနိုင်ပါတယ်။ ${inventoryFact}`
     : `I can’t check live weather, so I won’t invent a Yangon forecast. I can check whether any stock risks are gathering inside the warehouse, though. ${inventoryFact}`;
-  if (asksBoredom || asksGenericAdvice) return myanmar
-    ? `ပျင်းနေတယ်ဆိုရင် “အသုတ်စုံထောက်” ကစားကြည့်ပါ။ သက်တမ်းနီးအသုတ်တွေကို စစ်ပြီး FEFO အစီအစဉ်နဲ့ ဦးစားပေးနိုင်ပါတယ်။ လက်ရှိ ရက် ၃၀ အတွင်း သက်တမ်းကုန်မည့် အသုတ် ${number.format(expiryBatchCount)} ခုရှိပါတယ်။ ${inventoryFact}`
-    : `Bored? Try a tiny “batch detective” round: check the nearest-expiring batches and plan FEFO rotation. There are ${number.format(expiryBatchCount)} in-stock batches due within 30 days. ${inventoryFact}`;
+  if (asksBoredom) return data.dataAvailable
+    ? myanmar
+      ? `ပျင်းနေတယ်ဆိုရင် “အသုတ်စုံထောက်” ကစားကြည့်ပါ။ သက်တမ်းနီးအသုတ်တွေကို စစ်ပြီး FEFO အစီအစဉ်နဲ့ ဦးစားပေးနိုင်ပါတယ်။ လက်ရှိ ရက် ၃၀ အတွင်း သက်တမ်းကုန်မည့် အသုတ် ${number.format(expiryBatchCount)} ခုရှိပါတယ်။ ${inventoryFact}`
+      : `Bored? Try a tiny “batch detective” round: check the nearest-expiring batches and plan FEFO rotation. There are ${number.format(expiryBatchCount)} in-stock batches due within 30 days. ${inventoryFact}`
+    : myanmar ? `ပျင်းနေတယ်ဆိုရင် “အသုတ်စုံထောက်” လုပ်ဖို့ စာရင်းကို ကြည့်ကြရအောင်။ လက်ရှိဂိုဒေါင်ဒေတာကို မရနိုင်သေးလို့ ကိန်းဂဏန်းကို မခန့်မှန်းပါဘူး။` : `Bored? Try a tiny “batch detective” round and see what deserves a closer look. I can’t read the current warehouse data, so I won’t guess at counts.`;
   return myanmar
     ? `မင်္ဂလာပါ။ စာရင်းကို စစ်ဆေးဖို့ အသင့်ပါပဲ။ စတော့အန္တရာယ်မရှိတဲ့နေ့ဆိုရင်တော့ ဒေတာဘေ့စ်ကလည်း ခဏနားချင်မှာပါ။ ${inventoryFact}`
     : `Hello! I’m ready to inspect the stock. On a quiet day, even the database gets to relax a little. ${inventoryFact}`;

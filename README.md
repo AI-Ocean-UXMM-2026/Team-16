@@ -5,10 +5,11 @@ StockSense is an AI-powered inventory assistant for small retail and food busine
 ## What it includes
 
 - A branch-aware Dashboard, Inventory, Movements, Expiry, AI Insights, Reports, and Settings workspace.
+- A bilingual, role-specific System Guide with a focused reading mode and task-by-task navigation for System Admins, Editors, and Viewers.
 - Search, filters, exports, notifications, recently viewed pages, English and Myanmar UI, and responsive navigation.
 - Atomic Stock In and Stock Out operations with positive whole-number quantities, batch validation, and immutable movement history.
 - Role-based access for System Admin, Editor, and Viewer.
-- Deterministic inventory risk calculations with optional AI explanations based on verified warehouse data. The assistant cannot change inventory.
+- Deterministic inventory risk calculations with optional AI explanations based on verified warehouse data. Ask StockSense also explains how to use the system, responds naturally to general questions, and cannot change inventory.
 
 ## Run locally
 
