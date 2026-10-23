@@ -3,7 +3,7 @@ import { z } from "zod";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
-const createSchema = z.object({ warehouseIds: z.array(z.string().uuid()).min(1).max(50), email: z.string().trim().email().max(254).transform((value) => value.toLowerCase()), username: z.string().trim().toLowerCase().regex(/^[a-z0-9_]{3,32}$/), fullName: z.string().trim().min(1).max(120), role: z.enum(["system_admin", "editor", "viewer"]) }).transform((input) => ({ ...input, warehouseIds: [...new Set(input.warehouseIds)] }));
+const createSchema = z.object({ warehouseIds: z.array(z.string().uuid()).min(1).max(50), email: z.string().trim().email().max(254).transform((value) => value.toLowerCase()), username: z.string().trim().toLowerCase().regex(/^[a-z0-9_]{3,32}$/), fullName: z.string().trim().min(1).max(120), password: z.string().min(8).max(128), role: z.enum(["system_admin", "editor", "viewer"]) }).transform((input) => ({ ...input, warehouseIds: [...new Set(input.warehouseIds)] }));
 const workspaceAccessSchema = z.object({
   userId: z.string().uuid(),
   warehouseIds: z.array(z.string().uuid()).max(50),
@@ -123,15 +123,29 @@ export async function POST(request: Request) {
     const [{ data: warehouseRows }, { data: username }] = await Promise.all([admin.from("warehouses").select("id").in("id", input.warehouseIds), admin.from("profiles").select("id").eq("username", input.username).maybeSingle()]);
     if ((warehouseRows ?? []).length !== input.warehouseIds.length) return NextResponse.json({ error: "One or more selected branches could not be found." }, { status: 404 });
     if (username) return NextResponse.json({ error: "That username is already in use." }, { status: 409 });
-    const { data: provision, error: provisionError } = await admin.from("user_provisioning_tokens").insert({ email: input.email, username: input.username, full_name: input.fullName, warehouse_id: input.warehouseIds[0], warehouse_ids: input.warehouseIds, app_role: input.role, invited_by: access.userId }).select("token").single();
+    const { data: provision, error: provisionError } = await admin.from("user_provisioning_tokens").insert({ email: input.email, username: input.username, full_name: input.fullName, warehouse_id: input.warehouseIds[0], app_role: input.role, invited_by: access.userId }).select("token").single();
     if (provisionError || !provision) return NextResponse.json({ error: provisionError?.message ?? "User invitation could not be prepared." }, { status: 400 });
-    const origin = new URL(request.url).origin;
-    const { error: inviteError } = await admin.auth.admin.inviteUserByEmail(input.email, { redirectTo: `${origin}/auth/callback?next=/dashboard`, data: { oceanblue_provisioning_token: provision.token } });
-    if (inviteError) {
+    const { data: created, error: createError } = await admin.auth.admin.createUser({
+      email: input.email,
+      password: input.password,
+      email_confirm: true,
+      user_metadata: { oceanblue_provisioning_token: provision.token },
+    });
+    if (createError || !created.user) {
       await admin.from("user_provisioning_tokens").delete().eq("token", provision.token);
-      return NextResponse.json({ error: inviteError.message }, { status: 400 });
+      return NextResponse.json({ error: createError?.message ?? "User account could not be created." }, { status: 400 });
     }
-    return NextResponse.json({ ok: true, message: `Invitation sent to ${input.email}. The account and ${input.role.replace("_", " ")} access are ready when they accept it.` }, { status: 201 });
+    if (input.role !== "system_admin") {
+      const { error: membershipError } = await admin.from("warehouse_members").upsert(
+        input.warehouseIds.map((warehouse_id) => ({ warehouse_id, user_id: created.user.id, role: input.role })),
+        { onConflict: "warehouse_id,user_id" },
+      );
+      if (membershipError) {
+        await admin.auth.admin.deleteUser(created.user.id);
+        return NextResponse.json({ error: "The account could not be assigned to the selected branches. Please retry." }, { status: 500 });
+      }
+    }
+    return NextResponse.json({ ok: true, message: `Account created for ${input.email} with ${input.role.replace("_", " ")} access. Share the initial password privately.` }, { status: 201 });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "User could not be created." }, { status: 500 });
   }
