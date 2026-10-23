@@ -30,6 +30,18 @@ Required client configuration is `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUP
 
 In Supabase Auth, configure the Site URL and allowed redirect URLs for local and deployed `/auth/callback` routes. Public sign-up is disabled; a System Admin invites users.
 
+## Deploy the secondary GitHub repository to Vercel
+
+The secondary repository (`AI-Ocean-UXMM-2026/Team-16`) deploys through GitHub Actions and the Vercel CLI. It does not need to be connected to Vercel's Git integration. The workflow in `.github/workflows/deploy-secondary-vercel.yml` deploys `main` to the configured Vercel production project and can also be run manually from GitHub Actions.
+
+1. In Vercel, switch to the team that should own the second deployment. Create a project without importing a Git repository. If the dashboard only offers Git import, create it with the Vercel CLI instead: install the CLI with `npm install --global vercel@latest`, run `vercel login`, then run `vercel project add` and follow the prompts. Do not connect the primary project or change its Git settings.
+2. In the new project's Settings, set the framework to Next.js (or leave automatic detection), and add the same required production environment variables used by the primary project. At minimum, configure `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`; add `SUPABASE_SERVICE_ROLE_KEY` and `OPENAI_API_KEY` only if those server features are enabled. Keep secret values in Vercel, never in GitHub workflow YAML or source code. Redeploy after changing environment variables.
+3. Get the new project's `VERCEL_ORG_ID` and `VERCEL_PROJECT_ID` from its Vercel project settings or the `.vercel/project.json` created when linking that project locally. Create a Vercel access token with access to the owning team.
+4. In the secondary GitHub repository, open **Settings → Secrets and variables → Actions → New repository secret**. Add `VERCEL_TOKEN`, `VERCEL_ORG_ID`, and `VERCEL_PROJECT_ID`. Secret values should be entered directly into GitHub, not shared in chat or committed.
+5. Ensure the production branch is named `main`, then run **Actions → Deploy secondary repository to Vercel → Run workflow** once to verify setup. Later pushes to `main` automatically deploy this project. The repository's existing `origin` push configuration sends commits to both GitHub repositories.
+
+If the new Vercel project uses a different hostname, add `https://<new-hostname>/auth/callback` to the Supabase project's **Authentication → URL Configuration → Redirect URLs**. Also set the new hostname as the Supabase Site URL only if it should be the default auth destination; otherwise keep the existing Site URL and add this hostname as an allowed redirect.
+
 ## Database setup
 
 Apply SQL migrations from `supabase/migrations/` in filename order using the Supabase SQL editor or your approved database workflow. Review each migration before applying it. Seed/training operations are explicit, admin-only actions and are not run automatically when the application starts. Do not reset data outside the documented, manifest-tracked seed scope.
