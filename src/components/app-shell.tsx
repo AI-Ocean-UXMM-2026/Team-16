@@ -4,7 +4,7 @@ import Link from "next/link";
 import { createPortal } from "react-dom";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { Bell, Boxes, Check, Mail, ChevronDown, Clock3, LayoutDashboard, Sparkles, LoaderCircle, LogOut, Menu, PanelLeftClose, PanelLeftOpen, Search, Settings, Warehouse, CalendarClock, ChartNoAxesCombined, ArrowLeftRight, X } from "lucide-react";
+import { Bell, Boxes, Check, Mail, ChevronDown, Clock3, LayoutDashboard, Sparkles, LoaderCircle, LogOut, Menu, PanelLeftClose, PanelLeftOpen, Search, Settings, Warehouse, CalendarClock, ChartNoAxesCombined, ArrowLeftRight, X, BookOpen } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { WarehouseOption } from "@/lib/types";
 import { words, type Locale } from "@/lib/locale";
@@ -12,8 +12,8 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { AskOceanBlueWidget } from "@/components/ask-oceanblue-widget";
 import { OceanBlueBrand } from "@/components/oceanblue-brand";
 
-const navigation: { href: string; key: "overview" | "inventory" | "movements" | "expiry" | "insights" | "reports" | "settings"; icon: typeof LayoutDashboard }[] = [
-  { href: "/dashboard", key: "overview", icon: LayoutDashboard }, { href: "/inventory", key: "inventory", icon: Boxes }, { href: "/movements", key: "movements", icon: ArrowLeftRight }, { href: "/expiry", key: "expiry", icon: CalendarClock }, { href: "/insights", key: "insights", icon: Sparkles }, { href: "/reports", key: "reports", icon: ChartNoAxesCombined }, { href: "/settings", key: "settings", icon: Settings },
+const navigation: { href: string; key: "overview" | "inventory" | "movements" | "expiry" | "insights" | "reports" | "guide" | "settings"; icon: typeof LayoutDashboard }[] = [
+  { href: "/dashboard", key: "overview", icon: LayoutDashboard }, { href: "/inventory", key: "inventory", icon: Boxes }, { href: "/movements", key: "movements", icon: ArrowLeftRight }, { href: "/expiry", key: "expiry", icon: CalendarClock }, { href: "/insights", key: "insights", icon: Sparkles }, { href: "/reports", key: "reports", icon: ChartNoAxesCombined }, { href: "/guide", key: "guide", icon: BookOpen }, { href: "/settings", key: "settings", icon: Settings },
 ];
 type SearchResult = { id: string; name: string; sku: string; category: string };
 type Notification = { id: string; title: string; detail: string; href: string; kind: "risk" | "expiry"; read?: boolean };
